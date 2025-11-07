@@ -398,7 +398,11 @@ class Text2VideoPanelV5(QWidget):
         self.cb_style.setMinimumHeight(32)
         self.cb_style.addItems([
             "Điện ảnh (Cinematic)", "Anime", "Tài liệu",
-            "Quay thực", "3D/CGI", "Stop-motion"
+            "Quay thực", "3D/CGI", "Stop-motion",
+            "Vlog cá nhân", "Review/Unboxing", "Tutorial/Hướng dẫn",
+            "Phim ngắn", "Quảng cáo TVC", "Music Video",
+            "Phóng sự", "Sitcom/Hài kịch", "Horror/Kinh dị",
+            "Sci-Fi/Khoa học viễn tưởng", "Fantasy/Phép thuật"
         ])
         row1.addWidget(self.cb_style, 1)
         
@@ -1000,15 +1004,25 @@ class Text2VideoPanelV5(QWidget):
             self.worker.story_done.connect(self._on_story_ready)
         else:
             self.worker.job_card.connect(self._on_job_card)
-            self.worker.job_finished.connect(self._on_worker_finished)
+        
+        # BUG FIX: Single cleanup slot to avoid race conditions
+        self.worker.job_finished.connect(self._on_worker_finished_cleanup)
         
         self.thread.start()
     
-    def _on_worker_finished(self):
-        """Re-enable buttons when worker completes"""
+    def _on_worker_finished_cleanup(self):
+        """Handle worker completion with proper cleanup"""
         self._append_log("[INFO] Worker hoàn tất.")
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
+        
+        # Clean up thread and worker
+        if hasattr(self, 'thread') and self.thread:
+            self.thread.quit()
+            self.thread.wait()
+            self.thread.deleteLater()
+        if hasattr(self, 'worker') and self.worker:
+            self.worker.deleteLater()
     
     def _on_story_ready(self, data, ctx):
         """Handle script generation completion"""

@@ -33,6 +33,169 @@ LANGUAGE_NAMES = {
     'id': 'Indonesian (Bahasa Indonesia)'
 }
 
+def _get_style_specific_guidance(style):
+    """Get specific guidance based on video style to better match user's idea"""
+    # Normalize style once for all checks
+    style_normalized = style.lower()
+    
+    # Use early returns for better performance
+    if "vlog" in style_normalized or "cá nhân" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+📹 PHONG CÁCH: VLOG CÁ NHÂN
+═══════════════════════════════════════════════════════════════
+- Tone: THÂN MẬT, chân thực, như nói chuyện với bạn bè
+- Camera: POV, selfie shots, handheld natural movement
+- Hook: Bắt đầu với câu chuyện cá nhân hoặc tình huống thực tế
+- Dialogue: Tự nhiên, có thể ngập ngừng, không cần hoàn hảo
+- Focus: Chia sẻ trải nghiệm, cảm xúc, bài học cá nhân
+"""
+    
+    if "review" in style_normalized or "unboxing" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+📦 PHONG CÁCH: REVIEW/UNBOXING
+═══════════════════════════════════════════════════════════════
+- Structure: Intro (hook) → Specs/Features → Demo → Pros/Cons → Verdict
+- Camera: Close-ups sản phẩm, hands-on shots, B-roll chi tiết
+- Hook: "Điều này sẽ thay đổi cách bạn..." hoặc so sánh bất ngờ
+- Visual: Chuyển cảnh nhanh, zoom vào chi tiết quan trọng
+- Focus: Giá trị thực tế, so sánh, đánh giá trung thực
+"""
+    
+    if "tutorial" in style_normalized or "hướng dẫn" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+🎓 PHONG CÁCH: TUTORIAL/HƯỚNG DẪN
+═══════════════════════════════════════════════════════════════
+- Structure: Problem → Solution steps → Result
+- Camera: Over-shoulder, close-up hands, screen recording
+- Hook: "Làm thế nào để..." hoặc "Bí quyết để..."
+- Visual: Từng bước rõ ràng, text overlays, arrows/highlights
+- Focus: Dễ hiểu, có thể làm theo, kết quả cụ thể
+"""
+    
+    if "quảng cáo" in style_normalized or "tvc" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+📺 PHONG CÁCH: QUẢNG CÁO TVC
+═══════════════════════════════════════════════════════════════
+- Structure: Problem → Agitation → Solution → Call-to-Action
+- Camera: Cinematic, professional lighting, perfect framing
+- Hook: Dramatic problem hoặc lifestyle transformation
+- Visual: High-end production, brand colors, lifestyle shots
+- Focus: Emotional connection, brand message, clear CTA
+"""
+    
+    if "music" in style_normalized or "mv" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+🎵 PHONG CÁCH: MUSIC VIDEO
+═══════════════════════════════════════════════════════════════
+- Structure: Theo beat và lyrics của nhạc
+- Camera: Dynamic movement, artistic angles, rhythm-matching cuts
+- Hook: Visual impact ngay từ giây đầu
+- Visual: Metaphors, symbolism, artistic interpretation
+- Focus: Mood, emotion, visual storytelling match với lyrics
+"""
+    
+    if "horror" in style_normalized or "kinh dị" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+👻 PHONG CÁCH: HORROR/KINH DỊ
+═══════════════════════════════════════════════════════════════
+- Structure: Normal → Unsettling → Terror → Climax
+- Camera: Low angles, shaky cam, jump scares, slow creepy zoom
+- Hook: Mysterious hoặc creepy atmosphere ngay đầu
+- Visual: Dark lighting, shadows, sudden movements
+- Focus: Tension build-up, fear, suspense, twisted ending
+"""
+    
+    if "sci-fi" in style_normalized or "khoa học" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+🚀 PHONG CÁCH: SCI-FI/KHOA HỌC VIỄN TƯỞNG
+═══════════════════════════════════════════════════════════════
+- Structure: World-building → Discovery → Conflict → Resolution
+- Camera: Futuristic angles, wide establishing shots, tech close-ups
+- Hook: "What if..." hoặc advanced technology reveal
+- Visual: Futuristic design, tech elements, cool color palette
+- Focus: Technology, future society, philosophical questions
+"""
+    
+    if "fantasy" in style_normalized or "phép thuật" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+✨ PHONG CÁCH: FANTASY/PHÉP THUẬT
+═══════════════════════════════════════════════════════════════
+- Structure: Ordinary world → Magic discovery → Quest → Transformation
+- Camera: Epic wide shots, magical effects emphasis, wonder moments
+- Hook: Magic reveal hoặc mystical world introduction
+- Visual: Rich colors, magical elements, fantastical creatures
+- Focus: Wonder, magic system, hero's journey, imagination
+"""
+    
+    if "anime" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+🎌 PHONG CÁCH: ANIME
+═══════════════════════════════════════════════════════════════
+- Structure: Character-driven với emotional peaks
+- Camera: Dynamic angles, speed lines, dramatic close-ups
+- Hook: Action sequence hoặc character intro
+- Visual: Vibrant colors, exaggerated expressions, dramatic effects
+- Focus: Character emotions, relationships, epic moments
+"""
+    
+    if "tài liệu" in style_normalized or "documentary" in style_normalized or "phóng sự" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+📚 PHONG CÁCH: TÀI LIỆU/PHÓNG SỰ
+═══════════════════════════════════════════════════════════════
+- Structure: Question → Investigation → Discovery → Conclusion
+- Camera: Observational, interviews, B-roll footage
+- Hook: Surprising fact hoặc important question
+- Visual: Real footage, data visualization, expert interviews
+- Focus: Truth, education, insight, real stories
+"""
+    
+    if "sitcom" in style_normalized or "hài" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+😂 PHONG CÁCH: SITCOM/HÀI KỊCH
+═══════════════════════════════════════════════════════════════
+- Structure: Setup → Escalation → Punchline
+- Camera: Multi-cam, reaction shots, comic timing
+- Hook: Funny situation hoặc character quirk
+- Visual: Bright lighting, expressive acting, sight gags
+- Focus: Humor, timing, relatable situations, callbacks
+"""
+    
+    if "phim ngắn" in style_normalized or "short film" in style_normalized:
+        return """
+═══════════════════════════════════════════════════════════════
+🎬 PHONG CÁCH: PHIM NGẮN
+═══════════════════════════════════════════════════════════════
+- Structure: Classic 3-act với twist ending
+- Camera: Cinematic composition, meaningful shots, visual metaphors
+- Hook: Intriguing premise hoặc character dilemma
+- Visual: Artistic, symbolic, every shot tells story
+- Focus: Complete story arc, character development, message
+"""
+    
+    # Default: Cinematic for all other styles including "Điện ảnh", "3D/CGI", "Stop-motion", "Quay thực"
+    return """
+═══════════════════════════════════════════════════════════════
+🎥 PHONG CÁCH: ĐIỆN ẢNH (CINEMATIC)
+═══════════════════════════════════════════════════════════════
+- Structure: Professional 3-Act structure
+- Camera: Cinematic composition, smooth movements, perfect framing
+- Hook: Visual impact hoặc intriguing scenario
+- Visual: Film-quality lighting, color grading, depth
+- Focus: Story depth, character arc, visual excellence
+"""
+
+
 def _schema_prompt(idea, style_vi, out_lang, n, per, mode):
     # Get target language display name
     target_language = LANGUAGE_NAMES.get(out_lang, 'Vietnamese (Tiếng Việt)')
@@ -45,11 +208,16 @@ IMPORTANT LANGUAGE REQUIREMENT:
 - Do NOT mix languages unless specifically requested
 """
     
+    # Style-specific guidance for better alignment with user's idea
+    style_guidance = _get_style_specific_guidance(style_vi)
+    
     base_rules = f"""
 Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
 Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên.
 
 {language_instruction}
+
+{style_guidance}
 
 ═══════════════════════════════════════════════════════════════
 🎬 NGUYÊN TẮC HẤP DẪN TUYỆT ĐỐI
