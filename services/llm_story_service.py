@@ -35,9 +35,11 @@ LANGUAGE_NAMES = {
 
 def _get_style_specific_guidance(style):
     """Get specific guidance based on video style to better match user's idea"""
-    style_lower = style.lower()
+    # Normalize style once for all checks
+    style_normalized = style.lower()
     
-    if "vlog" in style_lower or "cá nhân" in style_lower:
+    # Use early returns for better performance
+    if "vlog" in style_normalized or "cá nhân" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 📹 PHONG CÁCH: VLOG CÁ NHÂN
@@ -48,7 +50,8 @@ def _get_style_specific_guidance(style):
 - Dialogue: Tự nhiên, có thể ngập ngừng, không cần hoàn hảo
 - Focus: Chia sẻ trải nghiệm, cảm xúc, bài học cá nhân
 """
-    elif "review" in style_lower or "unboxing" in style_lower:
+    
+    if "review" in style_normalized or "unboxing" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 📦 PHONG CÁCH: REVIEW/UNBOXING
@@ -59,7 +62,8 @@ def _get_style_specific_guidance(style):
 - Visual: Chuyển cảnh nhanh, zoom vào chi tiết quan trọng
 - Focus: Giá trị thực tế, so sánh, đánh giá trung thực
 """
-    elif "tutorial" in style_lower or "hướng dẫn" in style_lower:
+    
+    if "tutorial" in style_normalized or "hướng dẫn" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 🎓 PHONG CÁCH: TUTORIAL/HƯỚNG DẪN
@@ -70,7 +74,8 @@ def _get_style_specific_guidance(style):
 - Visual: Từng bước rõ ràng, text overlays, arrows/highlights
 - Focus: Dễ hiểu, có thể làm theo, kết quả cụ thể
 """
-    elif "quảng cáo" in style_lower or "tvc" in style_lower:
+    
+    if "quảng cáo" in style_normalized or "tvc" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 📺 PHONG CÁCH: QUẢNG CÁO TVC
@@ -81,7 +86,8 @@ def _get_style_specific_guidance(style):
 - Visual: High-end production, brand colors, lifestyle shots
 - Focus: Emotional connection, brand message, clear CTA
 """
-    elif "music" in style_lower or "mv" in style_lower:
+    
+    if "music" in style_normalized or "mv" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 🎵 PHONG CÁCH: MUSIC VIDEO
@@ -92,7 +98,8 @@ def _get_style_specific_guidance(style):
 - Visual: Metaphors, symbolism, artistic interpretation
 - Focus: Mood, emotion, visual storytelling match với lyrics
 """
-    elif "horror" in style_lower or "kinh dị" in style_lower:
+    
+    if "horror" in style_normalized or "kinh dị" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 👻 PHONG CÁCH: HORROR/KINH DỊ
@@ -103,7 +110,8 @@ def _get_style_specific_guidance(style):
 - Visual: Dark lighting, shadows, sudden movements
 - Focus: Tension build-up, fear, suspense, twisted ending
 """
-    elif "sci-fi" in style_lower or "khoa học" in style_lower:
+    
+    if "sci-fi" in style_normalized or "khoa học" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 🚀 PHONG CÁCH: SCI-FI/KHOA HỌC VIỄN TƯỞNG
@@ -114,7 +122,8 @@ def _get_style_specific_guidance(style):
 - Visual: Futuristic design, tech elements, cool color palette
 - Focus: Technology, future society, philosophical questions
 """
-    elif "fantasy" in style_lower or "phép thuật" in style_lower:
+    
+    if "fantasy" in style_normalized or "phép thuật" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 ✨ PHONG CÁCH: FANTASY/PHÉP THUẬT
@@ -125,7 +134,8 @@ def _get_style_specific_guidance(style):
 - Visual: Rich colors, magical elements, fantastical creatures
 - Focus: Wonder, magic system, hero's journey, imagination
 """
-    elif "anime" in style_lower:
+    
+    if "anime" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 🎌 PHONG CÁCH: ANIME
@@ -136,10 +146,11 @@ def _get_style_specific_guidance(style):
 - Visual: Vibrant colors, exaggerated expressions, dramatic effects
 - Focus: Character emotions, relationships, epic moments
 """
-    elif "tài liệu" in style_lower or "documentary" in style_lower:
+    
+    if "tài liệu" in style_normalized or "documentary" in style_normalized or "phóng sự" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
-📚 PHONG CÁCH: TÀI LIỆU
+📚 PHONG CÁCH: TÀI LIỆU/PHÓNG SỰ
 ═══════════════════════════════════════════════════════════════
 - Structure: Question → Investigation → Discovery → Conclusion
 - Camera: Observational, interviews, B-roll footage
@@ -147,7 +158,8 @@ def _get_style_specific_guidance(style):
 - Visual: Real footage, data visualization, expert interviews
 - Focus: Truth, education, insight, real stories
 """
-    elif "sitcom" in style_lower or "hài" in style_lower:
+    
+    if "sitcom" in style_normalized or "hài" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 😂 PHONG CÁCH: SITCOM/HÀI KỊCH
@@ -158,7 +170,8 @@ def _get_style_specific_guidance(style):
 - Visual: Bright lighting, expressive acting, sight gags
 - Focus: Humor, timing, relatable situations, callbacks
 """
-    elif "phim ngắn" in style_lower or "short film" in style_lower:
+    
+    if "phim ngắn" in style_normalized or "short film" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
 🎬 PHONG CÁCH: PHIM NGẮN
@@ -169,8 +182,9 @@ def _get_style_specific_guidance(style):
 - Visual: Artistic, symbolic, every shot tells story
 - Focus: Complete story arc, character development, message
 """
-    else:  # Default: Cinematic
-        return """
+    
+    # Default: Cinematic for all other styles including "Điện ảnh", "3D/CGI", "Stop-motion", "Quay thực"
+    return """
 ═══════════════════════════════════════════════════════════════
 🎥 PHONG CÁCH: ĐIỆN ẢNH (CINEMATIC)
 ═══════════════════════════════════════════════════════════════

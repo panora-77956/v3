@@ -1000,26 +1000,29 @@ class Text2VideoPanelV5(QWidget):
         self.thread.started.connect(self.worker.run)
         self.worker.log.connect(self._append_log)
         
-        # BUG FIX: Connect job_finished for both tasks to ensure proper cleanup
-        self.worker.job_finished.connect(self._on_worker_finished)
-        
         if task == "script":
             self.worker.story_done.connect(self._on_story_ready)
         else:
             self.worker.job_card.connect(self._on_job_card)
         
-        # BUG FIX: Add thread cleanup
-        self.worker.job_finished.connect(self.thread.quit)
-        self.thread.finished.connect(self.thread.deleteLater)
-        self.worker.job_finished.connect(self.worker.deleteLater)
+        # BUG FIX: Single cleanup slot to avoid race conditions
+        self.worker.job_finished.connect(self._on_worker_finished_cleanup)
         
         self.thread.start()
     
-    def _on_worker_finished(self):
-        """Re-enable buttons when worker completes"""
+    def _on_worker_finished_cleanup(self):
+        """Handle worker completion with proper cleanup"""
         self._append_log("[INFO] Worker hoàn tất.")
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
+        
+        # Clean up thread and worker
+        if hasattr(self, 'thread') and self.thread:
+            self.thread.quit()
+            self.thread.wait()
+            self.thread.deleteLater()
+        if hasattr(self, 'worker') and self.worker:
+            self.worker.deleteLater()
     
     def _on_story_ready(self, data, ctx):
         """Handle script generation completion"""
