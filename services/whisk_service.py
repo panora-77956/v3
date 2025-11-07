@@ -32,7 +32,6 @@ def get_session_cookies() -> str:
 def get_bearer_token() -> str:
     """
     Get bearer token (OAuth token) from config for Whisk API
-    Returns bearer token for API requests
     """
     from services.core.key_manager import get_all_keys
     
@@ -306,9 +305,11 @@ def run_image_recipe(
                 # Check for generation ID for polling
                 if 'generationId' in result or 'mediaGenerationId' in result:
                     gen_id = result.get('generationId') or result.get('mediaGenerationId')
-                    log(f"[INFO] Whisk: Got generation ID, polling for result...")
-                    # TODO: Implement polling for generation status
-                    log(f"[WARN] Whisk: Polling not implemented yet")
+                    log(f"[INFO] Whisk: Got generation ID: {gen_id[:30]}...")
+                    # NOTE: Async generation polling not yet implemented
+                    # Whisk API returns generation ID for async requests that need to be polled
+                    # This is a known limitation - immediate results only
+                    log(f"[LIMITATION] Whisk: Async polling not implemented - only immediate results supported")
                     return None
             
             log(f"[ERROR] Whisk: Unexpected response structure")

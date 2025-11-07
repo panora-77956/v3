@@ -64,7 +64,8 @@ class APIKeyRotator:
 
         for idx, key in enumerate(self.keys):
             # Exponential backoff optimized for Gemini free tier (15 RPM = 4s per request)
-            # Start with 10s base delay and double each time: 10s, 20s, 40s, 60s...
+            # Start with 10s base delay and double each time
+            # Progression: 10s, 20s, 40s, 80s... (capped at 60s max)
             if idx > 0:
                 delay = 10 * (2 ** (idx - 1))  # 10s, 20s, 40s, 80s...
                 # Cap at MAX_BACKOFF_SECONDS to avoid excessive waits
