@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Python cache
+*.pyc
+*.pyo
+*.pyd
+
+# Backups
+*.backup
+*.bak
+*~
+
+# Documentation/Reports (keep only README.md)
+*_SUMMARY.md
+*_REPORT.md
+*_IMPLEMENTATION*.md
+PR*.md
+REDESIGN*.md
+REFACTOR*.md
+
+# Test files
+test_*.py
+diagnostic.*
+repo_tree.txt
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
+*.gif
+!assets/**/*.png
+!assets/**/*.jpg
+
+# PyQt
+*.ui~
+
+# Config
+.veo_image2video_cfg.json
+.env
+
+# Logs
+*.log
+nhat_ky_xu_ly.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project specific
+VeoProjects/
