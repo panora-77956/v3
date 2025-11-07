@@ -22,22 +22,82 @@ thumb_label.mousePressEvent = lambda e, path=video_path: self.main_panel._play_v
 ---
 
 ### 2. NameError: name 'time' is not defined ✅
-**File**: `ui/text2video_panel_impl.py` (dòng 1000)
+**File**: `ui/text2video_panel_impl.py` (dòng 7)
 
-**Lỗi**: Phương thức `_poll_all_jobs` sử dụng `time.sleep()` ở dòng 1047 và 1136 nhưng chưa import module `time`
+**Lỗi**: Phương thức `_poll_all_jobs` sử dụng `time.sleep()` nhưng module `time` chưa được import
 
-**Đã sửa**: Thêm `import time` vào đầu phương thức `_poll_all_jobs`
+**Đã sửa**: Thêm `import time` vào đầu file (module level) để tuân thủ best practices
 
 ```python
-def _poll_all_jobs(self, jobs, dir_videos, thumbs_dir, up4k, auto_download, quality):
-    """Poll all jobs for completion (shared logic between parallel and sequential)"""
-    # BUG FIX: Import time module for sleep calls
-    import time
-    
-    if not jobs:
-        self.log.emit("[INFO] No jobs to poll")
-        return
+import json
+import os
+import re
+import shutil
+import subprocess
+import datetime
+import time  # BUG FIX: Added for _poll_all_jobs and other methods
+from xml.sax.saxutils import escape as xml_escape
 ```
+
+**Code Review Feedback**: Ban đầu import local trong method, sau đó được chuyển lên module level để tốt hơn về performance và readability.
+
+---
+
+### 3. Layout Gap trên màn hình lớn (Storyboard View) ✅
+**File**: `ui/text2video_panel_v5_complete.py` (class StoryboardView)
+
+**Vấn đề**: 
+- Khi màn hình toàn màn hình với 4 cảnh → 1 cảnh nhảy xuống dưới → bị trống 1 khoảng lớn
+- Khi thu nhỏ màn hình → hiển thị vừa đúng
+- Layout cố định 3 cột không responsive với kích thước màn hình khác nhau
+
+**Nguyên nhân**:
+1. Grid layout cố định 3 cột (`row = (scene_num - 1) // 3`)
+2. Card có `setMaximumSize(280, 260)` ngăn không cho scale
+3. Alignment mặc định làm card bị center, tạo gaps
+
+**Giải pháp đã implement**:
+
+1. **Dynamic Column Calculation**:
+```python
+def _calculate_columns(self):
+    """Tính số cột tối ưu dựa trên chiều rộng container"""
+    container_width = self.container.width()
+    card_width = 280 + 12  # card + spacing
+    optimal_columns = max(1, container_width // card_width)
+    return min(5, max(2, optimal_columns))  # 2-5 cột
+```
+
+2. **Auto-Relayout on Resize**:
+```python
+def resizeEvent(self, event):
+    """Xử lý resize để điều chỉnh số cột"""
+    super().resizeEvent(event)
+    new_columns = self._calculate_columns()
+    if new_columns != self.num_columns:
+        self.num_columns = new_columns
+        self._relayout_cards()  # Sắp xếp lại cards
+```
+
+3. **Responsive Card Sizing**:
+```python
+card.setMinimumSize(240, 220)
+# Bỏ setMaximumSize để cho phép responsive
+card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+```
+
+4. **Better Alignment**:
+```python
+self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # Left align, không center
+```
+
+**Kết quả**:
+- 📱 **Small screen** (< 600px): 2 cột
+- 💻 **Medium screen** (600-900px): 3 cột (default)
+- 🖥️ **Large screen** (900-1200px): 4 cột
+- 🖥️ **Extra large** (> 1200px): 5 cột
+- 🔄 **Auto-adjust**: Resize cửa sổ → layout tự động điều chỉnh mượt mà
+- ✅ **No gaps**: Cards căn trái, không có khoảng trống giữa
 
 ---
 
@@ -219,12 +279,15 @@ self.progress_bar.setValue(completed / total * 100)
 
 ## 📚 Files Modified
 
-1. `ui/text2video_panel_v5_complete.py` - Fixed _play_video AttributeError
-2. `ui/text2video_panel_impl.py` - Fixed missing time import
+1. `ui/text2video_panel_v5_complete.py` - Fixed _play_video AttributeError + Responsive Storyboard layout
+2. `ui/text2video_panel_impl.py` - Fixed missing time import (moved to module level)
+3. `BUGFIX_SUMMARY_TEXT2VIDEO.md` - This comprehensive documentation
 
-## 🏷️ Commit Hash
+## 🏷️ Commit History
 
-Latest commit: `b3aa2b2` - "Fix text2video panel bugs: AttributeError and missing time import"
+1. `b3aa2b2` - "Fix text2video panel bugs: AttributeError and missing time import"
+2. `5f8d03f` - "Add comprehensive bugfix and improvement summary for text2video panel"
+3. `686a7a0` - "Make Storyboard view responsive - fix layout gaps on large screens" (LATEST)
 
 ---
 
