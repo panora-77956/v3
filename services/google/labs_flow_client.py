@@ -206,7 +206,8 @@ def _trim_prompt_text(prompt_text: Any)->str:
                         # Format: "[Language] voiceover: [text]"
                         parts.append(f"[{lang_name} voiceover: {vo_text}]")
             
-            # Combine all parts with space separator for cleaner formatting
+            # Combine all parts with single space separator for compact formatting
+            # This creates a continuous prompt while maintaining readability
             text = " ".join([p for p in parts if p])
             
             # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description

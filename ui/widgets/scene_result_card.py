@@ -84,7 +84,10 @@ class SceneResultCard(QFrame):
         content_layout.addWidget(lbl_title)
 
         # Description - Display full scene description (no truncation)
-        # If description is from prompt_video, prefer that as it contains the full scene prompt
+        # Priority order:
+        #   1. prompt_video: Contains the complete structured video generation prompt
+        #   2. description: General description field
+        #   3. desc: Alternate description field (backward compatibility)
         desc_text = self.scene_data.get('prompt_video', '') or self.scene_data.get('description', '') or self.scene_data.get('desc', '')
         
         # If the description is very long (>500 chars), show first 500 chars with ellipsis
