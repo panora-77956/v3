@@ -244,8 +244,38 @@ def generate_image_with_rate_limit(
                 return _extract_image_from_response(data)
 
             # Use APIKeyRotator with provided keys
-            rotator = APIKeyRotator(api_keys, log_callback=log_fn)
-            return rotator.execute(api_call_with_key)
+            try:
+                rotator = APIKeyRotator(api_keys, log_callback=log_fn)
+                return rotator.execute(api_call_with_key)
+            except APIKeyRotationError as e:
+                # All Gemini keys exhausted - check if it's due to rate limits
+                error_msg = str(e).lower()
+                if 'rate limit' in error_msg or '429' in error_msg or 'quota' in error_msg:
+                    log("[RATE LIMIT] All Gemini API keys are rate limited!")
+                    log("[INFO] Attempting fallback to Whisk API...")
+                    
+                    # Try Whisk as fallback if reference images are available
+                    if reference_images and len(reference_images) > 0:
+                        try:
+                            from services import whisk_service
+                            whisk_result = whisk_service.generate_image(
+                                prompt=actual_prompt,
+                                model_image=reference_images[0] if len(reference_images) > 0 else None,
+                                product_image=reference_images[1] if len(reference_images) > 1 else None,
+                                debug_callback=log_fn
+                            )
+                            if whisk_result:
+                                log("[SUCCESS] Whisk fallback succeeded!")
+                                return whisk_result
+                            else:
+                                log("[ERROR] Whisk fallback returned no data")
+                        except Exception as whisk_err:
+                            log(f"[ERROR] Whisk fallback failed: {str(whisk_err)[:100]}")
+                    else:
+                        log("[SKIP] Whisk requires reference images (not provided)")
+                
+                # Re-raise the original error if Whisk fallback didn't work
+                raise
 
         elif model.lower() == "dalle":
             log(f"[IMAGE GEN] Tạo ảnh với DALL-E...")

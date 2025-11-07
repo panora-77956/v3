@@ -17,9 +17,10 @@ class APIKeyRotator:
     Smart API key rotation with exponential backoff and intelligent retry logic
     
     Features:
-    - Exponential backoff: 2s, 4s, 8s, 16s...
+    - Exponential backoff: 10s, 20s, 40s, 60s... (optimized for Gemini free tier)
     - Smart error handling: retry 429, fail fast on 401
     - Transparent logging
+    - Minimum 5s delay between key switches for rate limit safety
     """
 
     def __init__(self, keys: List[str], log_callback: Optional[Callable[[str], None]] = None):
@@ -41,8 +42,8 @@ class APIKeyRotator:
         if self.log_callback:
             self.log_callback(msg)
 
-    # Maximum backoff delay in seconds
-    MAX_BACKOFF_SECONDS = 32
+    # Maximum backoff delay in seconds (increased for free tier safety)
+    MAX_BACKOFF_SECONDS = 60
 
     def execute(self, api_call: Callable[[str], Any]) -> Any:
         """
@@ -59,11 +60,14 @@ class APIKeyRotator:
             APIKeyRotationError: If all keys fail
         """
         last_error = None
+        rate_limit_count = 0
 
         for idx, key in enumerate(self.keys):
-            # Exponential backoff: 4s, 8s, 16s, 32s (increased from 2s, 4s, 8s, 16s)
+            # Exponential backoff optimized for Gemini free tier (15 RPM = 4s per request)
+            # Start with 10s base delay and double each time
+            # Progression: 10s, 20s, 40s, 80s... (capped at 60s max)
             if idx > 0:
-                delay = 4 * (2 ** (idx - 1))  # 4s, 8s, 16s, 32s...
+                delay = 10 * (2 ** (idx - 1))  # 10s, 20s, 40s, 80s...
                 # Cap at MAX_BACKOFF_SECONDS to avoid excessive waits
                 delay = min(delay, self.MAX_BACKOFF_SECONDS)
                 self._log(f"[BACKOFF] Waiting {delay}s before trying next key...")
@@ -88,8 +92,13 @@ class APIKeyRotator:
                     continue
 
                 # 429: Rate limit - continue with backoff
-                if '429' in error_msg or 'rate limit' in error_msg or 'quota' in error_msg:
-                    self._log(f"[RATE LIMIT] Key {key_preview} hit rate limit (429)")
+                if '429' in error_msg or 'rate limit' in error_msg or 'quota' in error_msg or 'resource_exhausted' in error_msg:
+                    rate_limit_count += 1
+                    self._log(f"[RATE LIMIT] Key {key_preview} hit rate limit (429) - {rate_limit_count}/{len(self.keys)} keys exhausted")
+                    
+                    # If all keys are rate limited, add extra warning
+                    if rate_limit_count >= len(self.keys):
+                        self._log(f"[WARNING] All {len(self.keys)} API keys are rate limited. Consider using Whisk or waiting longer.")
                     continue
 
                 # 403: Forbidden - permission issue, skip

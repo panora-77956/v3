@@ -64,16 +64,18 @@ pip install -r requirements.txt
 {
   "tokens": ["your-google-labs-oauth-token-1", "your-google-labs-oauth-token-2"],
   "google_keys": ["your-gemini-api-key"],
+  "labs_tokens": ["your-google-labs-bearer-token"],
   "elevenlabs_keys": ["your-elevenlabs-key"],
   "default_project_id": "your-project-id",
   "download_root": "/path/to/downloads"
 }
 ```
 
-**Lưu ý / Note:**
-- `tokens`: OAuth Flow Tokens từ labs.google.com (cho video generation)
-- `google_keys`: Gemini API Keys (cho AI text generation)
-- `elevenlabs_keys`: ElevenLabs API Keys (cho voice synthesis)
+**Whisk Configuration (Optional - for rate limit fallback):**
+- `labs_tokens`: Bearer tokens for Google Labs API (for Whisk image generation)
+- Whisk is automatically used as fallback when all Gemini API keys hit rate limits
+- To get a Labs token, inspect network requests on https://labs.google/fx/tools/whisk
+- Whisk requires reference images to work (model/product images)
 
 2. (Tùy chọn) Tạo file `.env` cho API keys:
 
@@ -174,6 +176,15 @@ v3/
 - ✅ **Caching**: ~95% faster for repeated operations
 - ✅ **Parallel Processing**: 5x concurrent video generation
 - ✅ **Structured Logging**: 6x faster debugging
+- ✅ **Smart Rate Limiting**: Exponential backoff (10s, 20s, 40s, 60s) for Gemini API
+- ✅ **Automatic Whisk Fallback**: Falls back to Whisk when all Gemini keys hit rate limits
+
+### Rate Limit Handling
+The application now includes intelligent rate limit handling for Gemini API:
+- **Exponential backoff**: 10s, 20s, 40s, 60s between API key rotations
+- **Automatic fallback**: Switches to Google Labs Whisk API when all Gemini keys are exhausted
+- **Smart warning**: Alerts when all API keys are rate limited
+- Configure `labs_tokens` in `config.json` to enable Whisk fallback
 
 ### Benchmarks
 | Operation | Before | After | Improvement |
@@ -231,6 +242,14 @@ python3 -c "from utils.config_validator import validate_config; validate_config(
 
 ## 📊 Phiên Bản / Version History
 
+### v7.2.2 (2025-11-07) - Rate Limit & Whisk Integration
+- 🚀 **Feature**: Complete Google Labs Whisk API integration for image generation
+- 🔧 **Fix**: Improved rate limit handling with longer backoff delays (10s, 20s, 40s, 60s)
+- 🔄 **Feature**: Automatic Whisk fallback when all Gemini API keys hit rate limits
+- ⚡ **Optimization**: Better API key rotation with rate limit detection
+- 📊 **Enhancement**: Rate limit counter shows progress when keys are exhausted
+- 📚 **Documentation**: Added Whisk configuration guide to README
+
 ### v7.2.1 (2025-11-07) - Security & Optimization Release
 - 🔒 **Security**: Updated Pillow to 10.2.0+ (fixed CVE vulnerabilities)
 - 🔒 **Security**: Updated yt-dlp to 2024.07.01+ (fixed RCE & command injection)
@@ -283,6 +302,6 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 **Made with ❤️ by chamnv-dev**
 
-**Version:** 7.2.1  
+**Version:** 7.2.2  
 **Updated:** 2025-11-07  
 **Status:** ✅ Production Ready & Secure
