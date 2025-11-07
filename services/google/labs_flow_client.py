@@ -1,5 +1,5 @@
 import base64, mimetypes, json, time, requests, re
-from typing import List, Dict, Optional, Tuple, Callable, Any
+from typing import List, Dict, Optional, Tuple, Callable, Any, Union
 
 
 # Optional default_project_id from user config (non-breaking)
@@ -70,7 +70,7 @@ def _normalize_status(item: dict) -> str:
     if s in ("MEDIA_GENERATION_STATUS_FAILED","FAILED","ERROR"): return "FAILED"
     return "PROCESSING"
 
-def _trim_prompt_text(prompt_text: Any):
+def _trim_prompt_text(prompt_text: Any) -> Union[str, Dict]:
     """
     Prepare prompt for video generation from structured prompt data.
     
@@ -85,7 +85,7 @@ def _trim_prompt_text(prompt_text: Any):
     - Returns as-is if under limit, otherwise intelligently truncates
     
     Returns:
-        Union[str, dict]: Either the original dict structure or a text string
+        Union[str, Dict]: Either the original dict structure or a text string
     """
     # Handle string input
     if isinstance(prompt_text, str):
