@@ -42,7 +42,7 @@ class DownloadWorker(QThread):
             # Check dependencies first
             if not service.is_yt_dlp_available():
                 self.error.emit(
-                    "yt-dlp is not installed or not found in PATH.\n\n" +
+                    "yt-dlp Python module is not installed.\n\n" +
                     service.get_installation_instructions()
                 )
                 return

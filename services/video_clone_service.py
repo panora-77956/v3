@@ -33,20 +33,14 @@ class VideoCloneService:
         Check if required dependencies (yt-dlp, ffmpeg) are available
         Logs warnings but doesn't raise errors during initialization
         """
-        # Check for yt-dlp
+        # Check for yt-dlp Python module
         yt_dlp_available = False
         try:
-            result = subprocess.run(
-                ['yt-dlp', '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                yt_dlp_available = True
-                self.log(f"[VideoClone] yt-dlp version: {result.stdout.strip()}")
-        except FileNotFoundError:
-            self.log("[VideoClone] WARNING: yt-dlp not found in PATH")
+            import yt_dlp
+            yt_dlp_available = True
+            self.log(f"[VideoClone] yt-dlp version: {yt_dlp.version.__version__}")
+        except ImportError:
+            self.log("[VideoClone] WARNING: yt-dlp module not found")
         except Exception as e:
             self.log(f"[VideoClone] WARNING: Error checking yt-dlp: {e}")
         
@@ -103,18 +97,17 @@ class VideoCloneService:
         if not self._yt_dlp_available:
             if sys.platform == 'win32':
                 instructions.append(
-                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "yt-dlp Python module is not installed.\n\n"
                     "To install yt-dlp on Windows:\n"
                     "1. Using pip: pip install yt-dlp\n"
-                    "2. Or download from: https://github.com/yt-dlp/yt-dlp/releases\n"
-                    "3. Add yt-dlp.exe to your system PATH\n"
+                    "2. Or using the requirements file: pip install -r requirements.txt\n"
                 )
             else:
                 instructions.append(
-                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "yt-dlp Python module is not installed.\n\n"
                     "To install yt-dlp:\n"
                     "- Using pip: pip install yt-dlp\n"
-                    "- Or visit: https://github.com/yt-dlp/yt-dlp/releases\n"
+                    "- Or using the requirements file: pip install -r requirements.txt\n"
                 )
         
         if not self._ffmpeg_available:
@@ -159,7 +152,7 @@ class VideoCloneService:
         # Check if yt-dlp is available
         if not self._yt_dlp_available:
             error_msg = (
-                "yt-dlp is not installed or not found in system PATH.\n\n"
+                "yt-dlp Python module is not installed.\n\n"
                 + self.get_installation_instructions()
             )
             self.log(f"[VideoClone] ERROR: yt-dlp not available")
@@ -196,57 +189,59 @@ class VideoCloneService:
         self.log(f"[VideoClone] Output directory: {output_dir}")
         
         try:
-            # Build yt-dlp command
-            cmd = [
-                'yt-dlp',
-                '-f', 'best[ext=mp4]/best',  # Prefer mp4 format
-                '--no-playlist',  # Don't download playlists
-                '-o', output_template,
-                url
-            ]
+            import yt_dlp
+            
+            # Configure yt-dlp options
+            ydl_opts = {
+                'format': 'best[ext=mp4]/best',  # Prefer mp4 format
+                'noplaylist': True,  # Don't download playlists
+                'outtmpl': output_template,
+                'quiet': False,
+                'no_warnings': False,
+            }
             
             # Add platform-specific options
             if platform == 'tiktok':
                 # TikTok specific options
-                cmd.extend(['--user-agent', 'Mozilla/5.0'])
+                ydl_opts['http_headers'] = {'User-Agent': 'Mozilla/5.0'}
             
             self.log(f"[VideoClone] Running yt-dlp download...")
             
-            # Execute download
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minutes timeout
-            )
+            # Download using yt-dlp Python API
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Download the video
+                info = ydl.extract_info(url, download=True)
+                
+                # Get the downloaded filename
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    video_path = info['requested_downloads'][0]['filepath']
+                else:
+                    # Fallback: construct filename from template
+                    filename = ydl.prepare_filename(info)
+                    video_path = filename
             
-            if result.returncode != 0:
-                error_msg = result.stderr or result.stdout
-                self.log(f"[VideoClone] ERROR: Download failed with exit code {result.returncode}")
-                raise RuntimeError(f"Download failed: {error_msg}")
+            # Verify file exists
+            if not os.path.exists(video_path):
+                # Try to find any video file in the output directory
+                video_files = [
+                    os.path.join(output_dir, f) 
+                    for f in os.listdir(output_dir) 
+                    if f.endswith(('.mp4', '.webm', '.mkv'))
+                ]
+                
+                if not video_files:
+                    raise RuntimeError("No video file found after download")
+                
+                video_path = video_files[0]
             
-            # Find downloaded file
-            video_files = [
-                os.path.join(output_dir, f) 
-                for f in os.listdir(output_dir) 
-                if f.endswith(('.mp4', '.webm', '.mkv'))
-            ]
-            
-            if not video_files:
-                raise RuntimeError("No video file found after download")
-            
-            video_path = video_files[0]
             self.log(f"[VideoClone] ✓ Downloaded: {os.path.basename(video_path)}")
             
             return video_path
             
-        except subprocess.TimeoutExpired:
-            self.log("[VideoClone] ERROR: Download timeout (5 minutes exceeded)")
-            raise RuntimeError("Download timeout (5 minutes exceeded)")
-        except FileNotFoundError as e:
+        except ImportError as e:
             # This should not happen as we check _yt_dlp_available, but keep as safety
             error_msg = (
-                "yt-dlp executable not found. Please ensure yt-dlp is installed and in your PATH.\n\n"
+                "yt-dlp module not found. Please ensure yt-dlp is installed.\n\n"
                 + self.get_installation_instructions()
             )
             self.log(f"[VideoClone] ERROR: {error_msg}")
