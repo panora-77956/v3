@@ -248,7 +248,11 @@ class LabsClient:
 
     def _post(self, url: str, payload: dict) -> dict:
         last=None
-        # Try all available tokens, skipping known invalid ones
+        # Calculate available tokens and max attempts
+        # Note: We don't directly iterate over tokens_to_try, instead we use round-robin
+        # via self._tok() and skip invalid ones. tokens_to_try is used to:
+        # 1. Determine max_attempts based on valid tokens
+        # 2. Reset invalid_tokens set when all tokens are invalid
         tokens_to_try = [t for t in self.tokens if t not in self._invalid_tokens]
         if not tokens_to_try:
             # All tokens are invalid, try them anyway as a fallback
@@ -263,7 +267,7 @@ class LabsClient:
         while attempts_made < max_attempts and skip_count < max_skips:
             current_token = None
             try:
-                # Get next token using round-robin
+                # Get next token using round-robin rotation
                 current_token = self._tok()
                 # Skip if this token is marked invalid (don't count as an attempt)
                 if current_token in self._invalid_tokens:
