@@ -233,6 +233,7 @@ class LabsClient:
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
         if not self.tokens: raise ValueError("No Labs tokens provided")
         self._idx=0; self.timeout=timeout; self.on_event=on_event
+        self._invalid_tokens=set()  # Track tokens that returned 401
 
     def _tok(self)->str:
         t=self.tokens[self._idx % len(self.tokens)]; self._idx+=1; return t
@@ -244,17 +245,53 @@ class LabsClient:
 
     def _post(self, url: str, payload: dict) -> dict:
         last=None
-        for attempt in range(3):
+        # Try all available tokens, skipping known invalid ones
+        tokens_to_try = [t for t in self.tokens if t not in self._invalid_tokens]
+        if not tokens_to_try:
+            # All tokens are invalid, try them anyway as a fallback
+            tokens_to_try = self.tokens.copy()
+            self._invalid_tokens.clear()
+        
+        max_attempts = min(3 * len(tokens_to_try), 9)  # Limit total attempts
+        for attempt in range(max_attempts):
+            current_token = None
             try:
-                r=requests.post(url, headers=_headers(self._tok()), json=payload, timeout=self.timeout)
+                # Get next token using round-robin
+                current_token = self._tok()
+                # Skip if this token is marked invalid
+                if current_token in self._invalid_tokens:
+                    continue
+                    
+                r=requests.post(url, headers=_headers(current_token), json=payload, timeout=self.timeout)
                 if r.status_code==200:
                     self._emit("http_ok", code=200)
                     try: return r.json()
                     except Exception: return {}
+                
+                # Handle 401 Unauthorized - mark token as invalid and skip to next immediately
+                if r.status_code == 401:
+                    self._invalid_tokens.add(current_token)
+                    error_msg = f"Token {current_token[:20]}... is invalid (401 Unauthorized)"
+                    self._emit("http_other_err", code=401, detail=error_msg)
+                    # Don't sleep, immediately try next token
+                    last = requests.HTTPError(f"401 Client Error: Unauthorized for url: {url}")
+                    continue
+                    
                 det=""
                 try: det=r.json().get("error",{}).get("message","")[:300]
                 except Exception: det=(r.text or "")[:300]
                 self._emit("http_other_err", code=r.status_code, detail=det); r.raise_for_status()
+            except requests.HTTPError as e:
+                error_msg = str(e).lower()
+                # Check if it's a 401 in the exception message
+                if '401' in error_msg or 'unauthorized' in error_msg:
+                    # Mark current token as invalid
+                    if current_token:
+                        self._invalid_tokens.add(current_token)
+                    # Don't sleep, try next token immediately
+                    last=e
+                    continue
+                last=e; time.sleep(0.7*(attempt+1))
             except Exception as e:
                 last=e; time.sleep(0.7*(attempt+1))
         raise last
