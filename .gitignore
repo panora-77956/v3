@@ -50,6 +50,8 @@ repo_tree.txt
 *.gif
 !assets/**/*.png
 !assets/**/*.jpg
+!resources/**/*.png
+!resources/**/*.jpg
 
 # PyQt
 *.ui~
