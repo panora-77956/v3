@@ -62,13 +62,18 @@ pip install -r requirements.txt
 
 ```json
 {
-  "tokens": ["your-google-veo-token-1", "your-google-veo-token-2"],
+  "tokens": ["your-google-labs-oauth-token-1", "your-google-labs-oauth-token-2"],
   "google_keys": ["your-gemini-api-key"],
   "elevenlabs_keys": ["your-elevenlabs-key"],
   "default_project_id": "your-project-id",
   "download_root": "/path/to/downloads"
 }
 ```
+
+**Lưu ý / Note:**
+- `tokens`: OAuth Flow Tokens từ labs.google.com (cho video generation)
+- `google_keys`: Gemini API Keys (cho AI text generation)
+- `elevenlabs_keys`: ElevenLabs API Keys (cho voice synthesis)
 
 2. (Tùy chọn) Tạo file `.env` cho API keys:
 
