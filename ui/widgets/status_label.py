@@ -80,8 +80,8 @@ class StatusLabel(QWidget):
                 emoji = EMOJI_FALLBACKS.get(self.icon_type, '•')
                 self.icon_label.setText(emoji)
                 self.icon_label.setFont(QFont("Segoe UI", int(self.icon_size * 0.8)))
-        except Exception:
-            # Ultimate fallback to default emoji
+        except (ImportError, ModuleNotFoundError, AttributeError) as e:
+            # Fallback to default emoji if icon utils fails
             emoji_map = {
                 'error': '❌',
                 'warning': '⚠️',
@@ -101,20 +101,30 @@ class StatusLabel(QWidget):
         return self.text_label.text()
     
     def setIcon(self, icon_type: str):
-        """Change the icon type"""
+        """
+        Change the icon type
+        
+        Note: This recreates the layout which can be expensive.
+        For better performance, consider creating a new StatusLabel
+        instead of changing the icon frequently.
+        """
+        old_icon_type = self.icon_type
         self.icon_type = icon_type
+        
         if self.icon_label:
+            # Update existing icon
             self._update_icon()
-        elif icon_type:
-            # Need to recreate layout with icon
-            # Clear current layout
+        elif icon_type and not old_icon_type:
+            # Need to add icon to existing layout
+            current_text = self.text_label.text() if hasattr(self, 'text_label') else ""
+            
+            # Clear layout
             while self.layout().count():
                 child = self.layout().takeAt(0)
                 if child.widget():
-                    child.widget().deleteLater()
+                    child.widget().setParent(None)
             
             # Recreate with icon
-            current_text = self.text_label.text() if hasattr(self, 'text_label') else ""
             self._setup_ui(current_text)
     
     def setStyleSheet(self, style: str):

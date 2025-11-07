@@ -25,8 +25,11 @@ def get_resource_path(relative_path: str) -> str:
     Returns:
         Absolute path to the resource file
     """
-    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_path, 'resources', relative_path)
+    # Get the path to the project root (parent of utils directory)
+    current_file = os.path.abspath(__file__)
+    utils_dir = os.path.dirname(current_file)
+    project_root = os.path.dirname(utils_dir)
+    return os.path.join(project_root, 'resources', relative_path)
 
 
 class IconType:

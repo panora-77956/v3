@@ -129,8 +129,8 @@ class ErrorDisplayWidget(QWidget):
                 icon_label.setText(emoji)
                 emoji_size = self.icon_size // 2 if self.compact else self.icon_size // 1.5
                 icon_label.setFont(QFont("Segoe UI", int(emoji_size)))
-        except Exception:
-            # Ultimate fallback to default emoji
+        except (ImportError, ModuleNotFoundError, AttributeError) as e:
+            # Fallback to default emoji if icon utils fails
             emoji_map = {
                 'error': '❌',
                 'warning': '⚠️',
@@ -157,9 +157,17 @@ class ErrorDisplayWidget(QWidget):
     
     def update_message(self, title: str = None, message: str = None):
         """Update the displayed message"""
-        # Clear and rebuild
-        self.layout().deleteLater()
+        # This method is kept for API compatibility but not recommended
+        # to use frequently. For simple text updates, consider creating
+        # a new widget instance instead.
         if title or message:
+            # Clear old widgets
+            while self.layout().count():
+                child = self.layout().takeAt(0)
+                if child.widget():
+                    child.widget().setParent(None)
+            
+            # Rebuild with new content
             new_title = title if title else ""
             new_message = message if message else ""
             self._setup_ui(new_title, new_message)
