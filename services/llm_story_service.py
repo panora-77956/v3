@@ -5,7 +5,7 @@ from services.core.api_key_rotator import APIKeyRotator, APIKeyRotationError
 
 # Constants for validation
 IDEA_RELEVANCE_THRESHOLD = 0.15  # Minimum word overlap ratio (15%)
-MIN_WORD_LENGTH = 3  # Minimum word length for relevance checking (changed from 2 to 3)
+MIN_WORD_LENGTH = 3  # Minimum word length for relevance checking (filters out words with <3 chars)
 MAX_IDEA_DISPLAY_LENGTH = 100  # Maximum length for displaying idea in warnings
 
 # Vietnamese character set for language detection
