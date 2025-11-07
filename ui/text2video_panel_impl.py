@@ -83,7 +83,7 @@ def extract_location_context(scene_data):
     location = scene_data.get("location", "").strip()
     if location:
         return location
-    
+
     # Second try: parse scene header from screenplay text (if available)
     screenplay = scene_data.get("screenplay_vi", "") or scene_data.get("screenplay_tgt", "")
     if screenplay:
@@ -92,16 +92,16 @@ def extract_location_context(scene_data):
             int_ext = match.group(1).strip()  # INT. or EXT.
             location_name = match.group(2).strip()  # e.g., HẺM NHỎ
             time = match.group(3).strip()  # e.g., NGÀY
-            
+
             # Build descriptive context
             setting_type = "Interior" if "INT" in int_ext.upper() else "Exterior"
             # Check for daytime keywords
             time_upper = time.upper()
             is_daytime = any(keyword in time_upper for keyword in _DAYTIME_KEYWORDS)
             time_desc = "daytime" if is_daytime else "nighttime"
-            
+
             return f"{setting_type} setting: {location_name}, {time_desc} lighting"
-    
+
     return None
 
 def _build_setting_details(location_context):
@@ -133,7 +133,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     Part F: Enhanced audio, domain_context, and metadata fields (Issue #5)
     Part G: Now supports dialogues for proper voiceover generation (Issue #7)
     """
-    
+
     ratio_map = {
         '16:9': ('1920x1080', 'VIDEO_ASPECT_RATIO_LANDSCAPE'),
         '21:9': ('2560x1080', 'VIDEO_ASPECT_RATIO_LANDSCAPE'),
@@ -167,7 +167,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     location_lock = "Keep to single coherent environment; no random background swaps."
     if location_context:
         location_lock = f"CRITICAL: All scenes must be in {location_context}. Do NOT change background, setting, or environment. Maintain exact location consistency across all scenes."
-    
+
     # BUG FIX #2: Enhanced character consistency locks
     hard_locks = {
         "identity": "CRITICAL: Keep same person/character across all scenes. Same face, same body, same identity. Do NOT change the character or introduce different people.",
@@ -203,7 +203,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             role = char.get("role", "")
             visual = char.get("visual_identity", "")
             key_trait = char.get("key_trait", "")
-            
+
             if nm:
                 # Build character description with visual identity
                 parts = [f"{nm}"]
@@ -213,9 +213,9 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
                     parts.append(f"— Visual: {visual}")
                 if key_trait:
                     parts.append(f"Trait: {key_trait}")
-                
+
                 char_parts.append(" ".join(parts))
-        
+
         if char_parts:
             character_details = "CRITICAL: Keep same person/character across all scenes. " + "; ".join(char_parts) + ". Keep appearance and demeanor consistent across all scenes."
         else:
@@ -240,16 +240,16 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
                 text_field = "text_vi" if lang_code == "vi" else "text_tgt"
                 fallback_field = "text_tgt" if lang_code == "vi" else "text_vi"
                 text = dlg.get(text_field) or dlg.get(fallback_field) or ""
-                
+
                 speaker = dlg.get("speaker", "")
                 if speaker and text:
                     dialogue_texts.append(f"{speaker}: {text}")
                 elif text:
                     dialogue_texts.append(text)
-        
+
         if dialogue_texts:
             vo_text = " ".join(dialogue_texts).strip()
-    
+
     # Fallback to scene description if no dialogues
     if not vo_text:
         # Enhanced: Match voiceover language with target language setting
@@ -261,7 +261,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             vo_text = (desc_vi or desc_tgt or "").strip()
         else:
             vo_text = (desc_tgt or desc_vi or "").strip()
-    
+
     # Part D: NEVER truncate voiceover - prompt optimizer will handle this
     # if len(vo_text)>240: vo_text = vo_text[:240] + "…"
 
@@ -270,13 +270,13 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     rate_multiplier = voice_settings.get("rate_multiplier", 1.0) if voice_settings else 1.0
     pitch_adjust = voice_settings.get("pitch_adjust", 0) if voice_settings else 0
     expressiveness = voice_settings.get("expressiveness", 0.5) if voice_settings else 0.5
-    
+
     # Get style info for descriptions
     try:
         from services.voice_options import get_style_info, get_elevenlabs_settings, SPEAKING_STYLES
         style_info = get_style_info(speaking_style)
         style_description = style_info.get("description", "")
-        
+
         # Get ElevenLabs settings (using voice adjustments if available from voice_settings)
         # Note: ElevenLabs adjustments would come from separate UI controls, defaulting to 0.0 for now
         elevenlabs_settings = get_elevenlabs_settings(speaking_style, 0.0, 0.0)
@@ -289,31 +289,31 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "style": 0.5,
             "use_speaker_boost": True
         }
-    
+
     # Build prosody descriptions
     rate_description = "normal speed"
     if rate_multiplier < 0.9:
         rate_description = "slow, deliberate pace"
     elif rate_multiplier > 1.1:
         rate_description = "fast, energetic pace"
-    
+
     pitch_description = "neutral pitch"
     if pitch_adjust < -2:
         pitch_description = "lower, deeper voice"
     elif pitch_adjust > 2:
         pitch_description = "higher, brighter voice"
-    
+
     expressiveness_description = "moderate emotion"
     if expressiveness < 0.3:
         expressiveness_description = "flat, monotone delivery"
     elif expressiveness > 0.7:
         expressiveness_description = "highly expressive, dynamic delivery"
-    
+
     # BUG FIX #3: Add validation flag to track if voice matches target language
     # The get_voices_for_provider function already filters voices by language,
     # so if a voice_id is provided, it should already match the language
     voice_lang_validated = bool(voice_id and tts_provider)
-    
+
     voiceover_config = {
         "language": lang_code or "vi",
         "tts_provider": tts_provider or "google",
@@ -335,7 +335,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         },
         "elevenlabs_settings": elevenlabs_settings
     }
-    
+
     # Part F: Build domain context
     domain_context = {}
     if domain and topic:
@@ -343,7 +343,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             from services.domain_prompts import get_system_prompt, build_expert_intro
             system_prompt = get_system_prompt(domain, topic)
             expertise_intro = build_expert_intro(domain, topic, lang_code or "vi")
-            
+
             domain_context = {
                 "domain": domain,
                 "topic": topic,
@@ -353,7 +353,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         except Exception as e:
             import sys
             print(f"[WARN] Domain context failed: {e}", file=sys.stderr)
-    
+
     # BUG FIX #4: Remove duplicate expertise_context from persona
     # Keep expertise_intro only in domain_context to avoid data duplication
     persona = {
@@ -427,14 +427,14 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             (lang_code if lang_code else "en"): {"prompt": (desc_tgt or desc_vi or '').strip()}
         }
     }
-    
+
     # Add domain_context if available
     if domain_context:
         data["domain_context"] = domain_context
-    
+
     # Add metadata
     data["metadata"] = metadata
-    
+
     return data
 
 class _Worker(QObject):
@@ -474,7 +474,7 @@ class _Worker(QObject):
             from services.llm_story_service import generate_script
         except Exception:
             from llm_story_service import generate_script
-        
+
         # Build voice config if provided
         voice_config = None
         if p.get("tts_provider") and p.get("voice_id"):
@@ -484,7 +484,7 @@ class _Worker(QObject):
                 voice_id=p["voice_id"],
                 language_code=p["out_lang_code"]
             )
-        
+
         # Generate script with voice and domain/topic settings
         data = generate_script(
             idea=p["idea"], 
@@ -562,10 +562,10 @@ class _Worker(QObject):
     def _run_video(self):
         p = self.payload
         st = cfg.load()
-        
+
         # ISSUE #4 FIX: Multi-account support with parallel processing
         account_mgr = get_account_manager()
-        
+
         # Check if multi-account mode is enabled for parallel processing
         if account_mgr.is_multi_account_enabled():
             self.log.emit(f"[INFO] Multi-account mode: {len(account_mgr.get_enabled_accounts())} accounts active")
@@ -577,7 +577,7 @@ class _Worker(QObject):
             self.log.emit(f"[INFO] Single-account mode: Using SEQUENTIAL processing")
             tokens = st.get("tokens") or []
             project_id = st.get("default_project_id") or DEFAULT_PROJECT_ID
-        
+
         copies = p["copies"]
         title = p["title"]
         dir_videos = p["dir_videos"]
@@ -589,12 +589,12 @@ class _Worker(QObject):
         jobs = []
         # Cache for LabsClient instances by project_id to avoid redundant creation
         client_cache = {}
-        
+
         # PR#5: Batch generation - make one call per scene with copies parameter (not N calls)
         for scene_idx, scene in enumerate(p["scenes"], start=1):
             ratio = scene["aspect"]
             model_key = p.get("model_key","")
-            
+
             # Create or reuse client for this project_id
             if project_id not in client_cache:
                 client_cache[project_id] = LabsClient(tokens, on_event=None)
@@ -609,10 +609,10 @@ class _Worker(QObject):
                 # Only create cards for operations that actually exist in the API response
                 # The body dict is updated by client.start_one() with operation_names list
                 actual_count = len(body.get("operation_names", []))
-                
+
                 if actual_count < copies:
                     self.log.emit(f"[WARN] Scene {scene_idx}: API returned {actual_count} operations but {copies} copies were requested")
-                
+
                 # Create cards only for videos that actually exist
                 for copy_idx in range(1, actual_count + 1):
                     card={"scene":scene_idx,"copy":copy_idx,"status":"PROCESSING","json":scene["prompt"],"url":"","path":"","thumb":"","dir":dir_videos}
@@ -669,7 +669,7 @@ class _Worker(QObject):
                 card = job_info['card']
                 job_dict = job_info['body']
                 copy_idx = job_info['copy']  # 1-based copy index
-                
+
                 # Get operation names list and map this copy to its operation
                 op_names = job_dict.get("operation_names", [])
                 if not op_names:
@@ -678,7 +678,7 @@ class _Worker(QObject):
                     if 'no_op_count' not in job_info:
                         job_info['no_op_count'] = 0
                     job_info['no_op_count'] += 1
-                    
+
                     # Only skip after multiple attempts
                     if job_info['no_op_count'] > 3:
                         sc = card['scene']
@@ -699,14 +699,14 @@ class _Worker(QObject):
                     card["error_reason"] = "Operation index out of bounds"
                     self.job_card.emit(card)
                     continue
-                
+
                 op_name = op_names[op_index]
                 op_result = rs.get(op_name) or {}
-                
+
                 # VEO3 WORKING STRUCTURE: Check raw API response
                 raw_response = op_result.get('raw', {})
                 status = raw_response.get('status', '')
-                
+
                 scene = card["scene"]
                 copy_num = card["copy"]
 
@@ -715,29 +715,29 @@ class _Worker(QObject):
                     op_metadata = raw_response.get('operation', {}).get('metadata', {})
                     video_info = op_metadata.get('video', {})
                     video_url = video_info.get('fifeUrl', '')
-                    
+
                     if video_url:
                         card["status"] = "READY"
                         card["url"] = video_url
-                        
+
                         self.log.emit(f"[SUCCESS] Scene {scene} Copy {copy_num}: Video ready!")
-                        
+
                         # Download logic - Always download videos
                         # Sanitize filename to handle Vietnamese characters and special characters
                         raw_fn = f"{title}_scene{scene}_copy{copy_num}.mp4"
                         fn = sanitize_filename(raw_fn)
                         fp = os.path.join(dir_videos, fn)
-                        
+
                         self.log.emit(f"[INFO] Downloading scene {scene} copy {copy_num}...")
-                        
+
                         try:
                             if self._download(video_url, fp):
                                 card["status"] = "DOWNLOADED"
                                 card["path"] = fp
-                                
+
                                 thumb = self._make_thumb(fp, thumbs_dir, scene, copy_num)
                                 card["thumb"] = thumb
-                                
+
                                 self.log.emit(f"[SUCCESS] ✓ Downloaded: {os.path.basename(fp)}")
                             else:
                                 # Track download retries
@@ -775,7 +775,7 @@ class _Worker(QObject):
                                 card["url"] = video_url
                                 card["error_reason"] = f"Download error: {str(e)[:50]}"
                                 self.job_card.emit(card)
-                        
+
                         self.job_card.emit(card)
                     else:
                         # Video marked successful but no URL - this is an error state
@@ -783,12 +783,12 @@ class _Worker(QObject):
                         card["status"] = "DONE_NO_URL"
                         card["error_reason"] = "No video URL in response"
                         self.job_card.emit(card)
-                
+
                 elif status == 'MEDIA_GENERATION_STATUS_FAILED':
                     # Try to extract error details from API response
                     error_info = raw_response.get('operation', {}).get('error', {})
                     error_message = error_info.get('message', '')
-                    
+
                     # Categorize the error
                     if 'quota' in error_message.lower() or 'limit' in error_message.lower():
                         error_reason = "Vượt quota API"
@@ -800,12 +800,12 @@ class _Worker(QObject):
                         error_reason = error_message[:80]
                     else:
                         error_reason = "Video generation failed"
-                    
+
                     card["status"] = "FAILED"
                     card["error_reason"] = error_reason
                     self.log.emit(f"[ERR] Scene {scene} Copy {copy_num} FAILED: {error_reason}")
                     self.job_card.emit(card)
-                
+
                 else:
                     # Still processing (PENDING, ACTIVE, or other states)
                     card["status"] = "PROCESSING"
@@ -857,16 +857,15 @@ class _Worker(QObject):
                             self.job_card.emit(card)
                         except Exception as e:
                             self.log.emit(f"[ERR] 4K upscale fail: {e}")
-    
+
     def _run_video_parallel(self, p, account_mgr):
         """
         Parallel video generation using multiple accounts
         Distributes scenes across accounts using round-robin for faster processing
         """
         import threading
-        import time
         from queue import Queue
-        
+
         st = cfg.load()
         copies = p["copies"]
         title = p["title"]
@@ -875,29 +874,29 @@ class _Worker(QObject):
         quality = p.get("quality", "1080p")
         auto_download = p.get("auto_download", True)
         thumbs_dir = os.path.join(dir_videos, "thumbs")
-        
+
         accounts = account_mgr.get_enabled_accounts()
         num_accounts = len(accounts)
-        
+
         self.log.emit(f"[INFO] 🚀 Parallel mode: {num_accounts} accounts, {len(p['scenes'])} scenes")
-        
+
         # Distribute scenes across accounts using round-robin
         batches = [[] for _ in range(num_accounts)]
         for scene_idx, scene in enumerate(p["scenes"], start=1):
             account_idx = (scene_idx - 1) % num_accounts
             batches[account_idx].append((scene_idx, scene))
-        
+
         # Results queue for thread-safe communication
         results_queue = Queue()
         all_jobs = []  # Jobs storage protected by jobs_lock for thread-safety
         jobs_lock = threading.Lock()
-        
+
         # Create and start threads
         threads = []
         for i, (account, batch) in enumerate(zip(accounts, batches)):
             if not batch:
                 continue
-            
+
             thread = threading.Thread(
                 target=self._process_scene_batch,
                 args=(account, batch, p, results_queue, all_jobs, jobs_lock, i),
@@ -907,21 +906,21 @@ class _Worker(QObject):
             threads.append(thread)
             self.log.emit(f"[INFO] Thread {i+1}: {len(batch)} scenes → {account.name}")
             thread.start()
-        
+
         # Monitor progress from all threads
         total_scenes = len(p["scenes"])
         completed_starts = 0
-        
+
         while completed_starts < total_scenes:
             if self.should_stop:
                 self.log.emit("[INFO] Parallel processing stopped by user")
                 break
-            
+
             try:
                 # Wait for results from any thread
                 import queue
                 msg_type, data = results_queue.get(timeout=1.0)
-                
+
                 if msg_type == "scene_started":
                     scene_idx, job_infos = data
                     completed_starts += 1
@@ -931,7 +930,7 @@ class _Worker(QObject):
                     self.job_card.emit(data)
                 elif msg_type == "log":
                     self.log.emit(data)
-                    
+
             except queue.Empty:
                 # Timeout, check if threads still running
                 if all(not t.is_alive() for t in threads):
@@ -940,48 +939,48 @@ class _Worker(QObject):
                 self.log.emit(f"[WARN] Progress monitoring error: {e}")
                 if all(not t.is_alive() for t in threads):
                     break
-        
+
         # Wait for all threads to complete scene starts (generous timeout for API calls)
         for thread in threads:
             thread.join(timeout=60.0)  # 60s timeout to handle slow network/API
-        
+
         self.log.emit(f"[INFO] All scenes submitted. Starting polling for {len(all_jobs)} jobs...")
-        
+
         # Now poll for all jobs (same logic as sequential but with all jobs from all threads)
         self._poll_all_jobs(all_jobs, dir_videos, thumbs_dir, up4k, auto_download, quality)
-    
+
     def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
         """Process a batch of scenes in a separate thread"""
         try:
             # Create client for this account
             client = LabsClient(account.tokens, on_event=None)
-            
+
             copies = p["copies"]
             model_key = p.get("model_key", "")
             dir_videos = p["dir_videos"]
-            
+
             thread_name = f"T{thread_id+1}"
-            
+
             for scene_idx, scene in batch:
                 if self.should_stop:
                     results_queue.put(("log", f"{thread_name}: Stopped by user"))
                     break
-                
+
                 try:
                     ratio = scene["aspect"]
-                    
+
                     # Start generation
                     body = {"prompt": scene["prompt"], "copies": copies, "model": model_key, "aspect_ratio": ratio}
                     results_queue.put(("log", f"{thread_name}: Starting scene {scene_idx} ({copies} copies)"))
-                    
+
                     rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=account.project_id)
-                    
+
                     if rc > 0:
                         actual_count = len(body.get("operation_names", []))
-                        
+
                         if actual_count < copies:
                             results_queue.put(("log", f"{thread_name}: Scene {scene_idx} returned {actual_count}/{copies} operations"))
-                        
+
                         # Create job cards
                         job_infos = []
                         for copy_idx in range(1, actual_count + 1):
@@ -996,7 +995,7 @@ class _Worker(QObject):
                                 "dir": dir_videos
                             }
                             results_queue.put(("card", card))
-                            
+
                             job_info = {
                                 'card': card,
                                 'body': body,
@@ -1005,11 +1004,11 @@ class _Worker(QObject):
                                 'client': client  # Keep client reference for polling
                             }
                             job_infos.append(job_info)
-                        
+
                         # Add to global jobs list (thread-safe)
                         with jobs_lock:
                             all_jobs.extend(job_infos)
-                        
+
                         results_queue.put(("scene_started", (scene_idx, job_infos)))
                         results_queue.put(("log", f"{thread_name}: Scene {scene_idx} started successfully"))
                     else:
@@ -1027,29 +1026,29 @@ class _Worker(QObject):
                                 "dir": dir_videos
                             }
                             results_queue.put(("card", card))
-                        
+
                         results_queue.put(("scene_started", (scene_idx, [])))
                         results_queue.put(("log", f"{thread_name}: Scene {scene_idx} failed to start"))
-                    
+
                     # Small delay between scenes to respect API rate limits
                     # TODO: Make this configurable per account rate limits
                     time.sleep(0.5)
-                    
+
                 except Exception as e:
                     results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
                     results_queue.put(("scene_started", (scene_idx, [])))
-            
+
             results_queue.put(("log", f"{thread_name}: Batch complete"))
-            
+
         except Exception as e:
             results_queue.put(("log", f"Thread {thread_id+1} error: {e}"))
-    
+
     def _poll_all_jobs(self, jobs, dir_videos, thumbs_dir, up4k, auto_download, quality):
         """Poll all jobs for completion (shared logic between parallel and sequential)"""
         if not jobs:
             self.log.emit("[INFO] No jobs to poll")
             return
-        
+
         # Group jobs by client to batch poll efficiently
         client_jobs = {}
         for job_info in jobs:
@@ -1057,35 +1056,35 @@ class _Worker(QObject):
             if client not in client_jobs:
                 client_jobs[client] = []
             client_jobs[client].append(job_info)
-        
+
         retry_count = {}
         download_retry_count = {}
         max_retries = 3
         max_download_retries = 5
-        
+
         for poll_round in range(120):
             if self.should_stop:
                 self.log.emit("[INFO] Polling stopped by user")
                 break
-            
+
             if not jobs:
                 self.log.emit("[INFO] All videos completed or failed")
                 break
-            
+
             # Poll each client's jobs
             for client, client_job_list in list(client_jobs.items()):
                 if not client_job_list:
                     continue
-                
+
                 # Extract all operation names for this client
                 names = []
                 for job_info in client_job_list:
                     job_dict = job_info['body']
                     names.extend(job_dict.get("operation_names", []))
-                
+
                 if not names:
                     continue
-                
+
                 # Batch check
                 try:
                     rs = client.batch_check_operations(names)
@@ -1093,26 +1092,26 @@ class _Worker(QObject):
                     self.log.emit(f"[WARN] Poll error (round {poll_round + 1}): {e}")
                     time.sleep(10)
                     continue
-                
+
                 # Process results (same logic as original sequential)
                 new_jobs = []
                 for job_info in client_job_list:
                     card = job_info['card']
                     job_dict = job_info['body']
                     copy_idx = job_info['copy']
-                    
+
                     op_names = job_dict.get("operation_names", [])
                     if not op_names:
                         if 'no_op_count' not in job_info:
                             job_info['no_op_count'] = 0
                         job_info['no_op_count'] += 1
-                        
+
                         if job_info['no_op_count'] > 3:
                             self.log.emit(f"[WARN] Scene {card['scene']} copy {card['copy']}: no operation name")
                         else:
                             new_jobs.append(job_info)
                         continue
-                    
+
                     op_index = copy_idx - 1
                     if op_index >= len(op_names):
                         self.log.emit(f"[ERR] Scene {card['scene']} copy {card['copy']}: operation index out of bounds")
@@ -1120,39 +1119,39 @@ class _Worker(QObject):
                         card["error_reason"] = "Operation index out of bounds"
                         self.job_card.emit(card)
                         continue
-                    
+
                     op_name = op_names[op_index]
                     op_result = rs.get(op_name) or {}
                     raw_response = op_result.get('raw', {})
                     status = raw_response.get('status', '')
-                    
+
                     scene = card["scene"]
                     copy_num = card["copy"]
-                    
+
                     if status == 'MEDIA_GENERATION_STATUS_SUCCESSFUL':
                         op_metadata = raw_response.get('operation', {}).get('metadata', {})
                         video_info = op_metadata.get('video', {})
                         video_url = video_info.get('fifeUrl', '')
-                        
+
                         if video_url:
                             card["status"] = "READY"
                             card["url"] = video_url
                             self.log.emit(f"[SUCCESS] Scene {scene} Copy {copy_num}: Video ready!")
-                            
+
                             # Download if enabled
                             if auto_download:
                                 out_name = f"scene_{scene:03d}_copy_{copy_num:02d}.mp4"
                                 dst_path = os.path.join(dir_videos, out_name)
-                                
+
                                 if self._download(video_url, dst_path):
                                     card["path"] = dst_path
                                     card["status"] = "DOWNLOADED"
-                                    
+
                                     # Thumbnail
                                     thumb = self._make_thumb(dst_path, thumbs_dir, scene, copy_num)
                                     if thumb:
                                         card["thumb"] = thumb
-                                    
+
                                     self.log.emit(f"[DOWNLOAD] Scene {scene} Copy {copy_num}: Downloaded")
                                 else:
                                     card["status"] = "DOWNLOAD_FAILED"
@@ -1189,18 +1188,18 @@ class _Worker(QObject):
                         card["error_reason"] = error_reason
                         self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {error_reason}")
                         self.job_card.emit(card)
-                    
+
                     else:
                         # Still processing
                         card["status"] = "PROCESSING"
                         self.job_card.emit(card)
                         new_jobs.append(job_info)
-                
+
                 client_jobs[client] = new_jobs
-            
+
             # Update main jobs list
             jobs = [job for job_list in client_jobs.values() for job in job_list]
-            
+
             if jobs:
                 # Warn if approaching timeout
                 if poll_round >= 100:

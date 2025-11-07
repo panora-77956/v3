@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-import os, base64, json, requests, mimetypes, uuid, time
-from typing import Optional, Dict, Any, List
-from services.core.api_config import GEMINI_IMAGE_MODEL, GEMINI_BASE, gemini_image_endpoint, IMAGE_GEN_TIMEOUT
+import base64, requests, time
+from typing import Optional
+from services.core.api_config import gemini_image_endpoint, IMAGE_GEN_TIMEOUT
 from services.core.key_manager import get_all_keys, refresh
 from services.core.api_key_rotator import APIKeyRotator, APIKeyRotationError
 
@@ -27,11 +27,11 @@ def _extract_image_from_response(data: dict) -> bytes:
     candidates = data.get("candidates", [])
     if not candidates:
         raise ImageGenError("No candidates in response")
-    
+
     parts = candidates[0].get("content", {}).get("parts", [])
     if not parts:
         raise ImageGenError("No parts in candidate")
-    
+
     # Look for inline_data with image
     for part in parts:
         if "inline_data" in part:
@@ -40,7 +40,7 @@ def _extract_image_from_response(data: dict) -> bytes:
                 b64_data = part["inline_data"].get("data", "")
                 if b64_data:
                     return base64.b64decode(b64_data)
-    
+
     raise ImageGenError("No image data found in response")
 
 
@@ -64,25 +64,25 @@ def generate_image_gemini(prompt: str, timeout: int = None, retry_delay: float =
     def log(msg):
         if log_callback:
             log_callback(msg)
-    
+
     timeout = timeout or IMAGE_GEN_TIMEOUT
     refresh()
     keys = get_all_keys('google')
     if not keys:
         raise ImageGenError("No Google API keys available")
-    
+
     log(f"[DEBUG] Tìm thấy {len(keys)} Google API keys")
-    
+
     # Enforce rate limit before first call
     if enforce_rate_limit:
         log(f"[RATE LIMIT] Đợi {retry_delay}s trước khi gọi API...")
         time.sleep(retry_delay)
-    
+
     # PR#5: Define API call function for APIKeyRotator
     def api_call_with_key(api_key: str) -> bytes:
         """Make API call with given key"""
         url = gemini_image_endpoint(api_key)
-        
+
         payload = {
             "contents": [{
                 "parts": [{
@@ -95,15 +95,15 @@ def generate_image_gemini(prompt: str, timeout: int = None, retry_delay: float =
                 "topP": 0.95,
             }
         }
-        
+
         response = requests.post(url, json=payload, timeout=timeout)
         response.raise_for_status()
-        
+
         data = response.json()
-        
+
         # Extract image data using helper
         return _extract_image_from_response(data)
-    
+
     # PR#5: Use APIKeyRotator
     try:
         rotator = APIKeyRotator(keys, log_callback=log)
@@ -155,23 +155,23 @@ def generate_image_with_rate_limit(
     """
     # Support both logger and log_callback parameter names
     log_fn = logger or log_callback
-    
+
     def log(msg):
         if log_fn:
             log_fn(msg)
-    
+
     # Load API keys if not provided
     if not api_keys:
         from services.core.key_manager import get_all_keys, refresh
         refresh()
         api_keys = get_all_keys('google')
-    
+
     if not api_keys:
         log("[ERROR] No Google API keys available")
         return None
-    
+
     log(f"[IMAGE GEN] Using {len(api_keys)} API keys with intelligent rotation")
-    
+
     # Normalize aspect ratio for Imagen 4
     normalized_ratio = aspect_ratio
     if model.lower() == 'imagen_4':
@@ -179,19 +179,19 @@ def generate_image_with_rate_limit(
         if aspect_ratio == "4:5":
             normalized_ratio = "3:4"
             log(f"[ASPECT RATIO] Normalized {aspect_ratio} to {normalized_ratio} for Imagen 4")
-    
+
     # Call appropriate generation function with key rotation
     try:
         if model.lower() in ("gemini", "imagen_4"):
             log(f"[IMAGE GEN] Tạo ảnh với {model}...")
-            
+
             # Build generation config with aspect ratio hint if provided
             generation_config = {
                 "temperature": 0.9,
                 "topK": 40,
                 "topP": 0.95,
             }
-            
+
             # Add aspect ratio to prompt for better results
             # Note: Gemini doesn't have explicit aspect_ratio parameter, so we enhance the prompt
             aspect_hint = ""
@@ -200,33 +200,33 @@ def generate_image_with_rate_limit(
                     aspect_hint = " (portrait orientation, vertical format)"
                 elif aspect_ratio in ("16:9", "21:9"):
                     aspect_hint = " (landscape orientation, horizontal format)"
-            
+
             enhanced_prompt = prompt + aspect_hint if aspect_hint else prompt
-            
+
             # Use APIKeyRotator for key rotation with shared API call logic
             def api_call_with_key(api_key: str) -> bytes:
                 """Make API call with given key"""
                 url = gemini_image_endpoint(api_key)
-                
+
                 payload = {
                     "contents": [{
                         "parts": parts
                     }],
                     "generationConfig": generation_config
                 }
-                
+
                 response = requests.post(url, json=payload, timeout=IMAGE_GEN_TIMEOUT)
                 response.raise_for_status()
-                
+
                 data = response.json()
-                
+
                 # Extract image data using helper
                 return _extract_image_from_response(data)
-            
+
             # Use APIKeyRotator with provided keys
             rotator = APIKeyRotator(api_keys, log_callback=log_fn)
             return rotator.execute(api_call_with_key)
-            
+
         elif model.lower() == "dalle":
             log(f"[IMAGE GEN] Tạo ảnh với DALL-E...")
             # Import DALL-E client if available
@@ -239,7 +239,7 @@ def generate_image_with_rate_limit(
         else:
             log(f"[ERROR] Unsupported model: {model}")
             return None
-        
+
     except Exception as e:
         log(f"[ERROR] Image generation failed: {str(e)[:200]}")
         return None

@@ -13,7 +13,7 @@ class VoiceoverCleaner:
         for pattern in patterns:
             cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
         return cleaned.strip()
-    
+
     def clean_outline(self, outline):
         for scene in outline.get('scenes', []):
             original = scene.get('voiceover', '')

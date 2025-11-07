@@ -26,21 +26,21 @@ def elide_text(text, font, max_width, mode=Qt.ElideRight):
 
 class ElidedLabel(QLabel):
     """QLabel that automatically elides text when resized"""
-    
+
     def __init__(self, text="", parent=None):
         super().__init__(text, parent)
         self._full_text = text
         self.setTextInteractionFlags(Qt.TextSelectableByMouse)
-    
+
     def setText(self, text):
         self._full_text = text
         super().setText(text)
         self._elide_text()
-    
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         self._elide_text()
-    
+
     def _elide_text(self):
         metrics = QFontMetrics(self.font())
         elided = metrics.elidedText(self._full_text, Qt.ElideRight, self.width())
@@ -49,7 +49,7 @@ class ElidedLabel(QLabel):
 
 class ResponsiveLineEdit(QLineEdit):
     """QLineEdit with minimum height and responsive behavior"""
-    
+
     def __init__(self, placeholder="", min_height=32, parent=None):
         super().__init__(parent)
         self.setPlaceholderText(placeholder)

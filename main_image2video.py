@@ -139,18 +139,18 @@ QTabBar::tab:nth-child(5):selected { background: #7C4DFF; }  /* Clone Video - De
 
 class PlaceholderPanel(QWidget):
     """Placeholder panel when a module is not available"""
-    
+
     def __init__(self, panel_name, error_msg="", parent=None):
         super().__init__(parent)
         from PyQt5.QtWidgets import QVBoxLayout, QLabel
-        
+
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
-        
+
         # Enhanced: Try to load warning icon image, fallback to emoji
         icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignCenter)
-        
+
         try:
             from utils.icon_utils import get_warning_icon, EMOJI_FALLBACKS, IconType
             warning_pixmap = get_warning_icon(size=(96, 96))
@@ -164,15 +164,15 @@ class PlaceholderPanel(QWidget):
             # Fallback to emoji if icon utils fails
             icon_label.setText("⚠️")
             icon_label.setFont(QFont("Segoe UI", 48))
-        
+
         layout.addWidget(icon_label)
-        
+
         title_label = QLabel(f"{panel_name} Not Available")
         title_label.setFont(QFont("Segoe UI", 18, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet("color: #FF5722;")
         layout.addWidget(title_label)
-        
+
         if error_msg:
             error_label = QLabel(f"Error: {error_msg}")
             error_label.setFont(QFont("Segoe UI", 12))
@@ -180,7 +180,7 @@ class PlaceholderPanel(QWidget):
             error_label.setWordWrap(True)
             error_label.setStyleSheet("color: #666;")
             layout.addWidget(error_label)
-        
+
         help_label = QLabel(
             "Please ensure all required files are in place:\n"
             "- ui/image2video_panel_v7_complete.py\n"
@@ -195,27 +195,27 @@ class PlaceholderPanel(QWidget):
 
 class MainWindow(QTabWidget):
     """Main application window with all panels"""
-    
+
     def __init__(self):
         super().__init__()
-        
+
         # Window setup
         self.setWindowTitle(f"Video Super Ultra v{get_version()}")
         self.setMinimumSize(1280, 720)
         self.resize(1440, 860)
-        
+
         # Apply main tab styling
         self.setStyleSheet(MAIN_TAB_STYLE)
-        
+
         # Initialize tabs
         self._init_tabs()
-        
+
         # Load state
         self._load_state()
-        
+
         # Print initialization info
         self._print_init_info()
-    
+
     def _init_tabs(self):
         """Initialize all tabs"""
         try:
@@ -225,7 +225,7 @@ class MainWindow(QTabWidget):
             else:
                 self.settings = PlaceholderPanel("Settings Panel")
             self.addTab(self.settings, "⚙️ Cài đặt")
-            
+
             # Tab 2: Image2Video V7
             if Image2VideoPanel:
                 try:
@@ -236,7 +236,7 @@ class MainWindow(QTabWidget):
             else:
                 self.image2video = PlaceholderPanel("Image2Video V7")
             self.addTab(self.image2video, "🖼️ Image2Video")
-            
+
             # Tab 3: Text2Video V5
             if Text2VideoPanel:
                 try:
@@ -247,7 +247,7 @@ class MainWindow(QTabWidget):
             else:
                 self.text2video = PlaceholderPanel("Text2Video V5")
             self.addTab(self.text2video, "📝 Text2Video")
-            
+
             # Tab 4: Video Ads V5
             if VideoAdsPanel:
                 try:
@@ -258,7 +258,7 @@ class MainWindow(QTabWidget):
             else:
                 self.video_ads = PlaceholderPanel("Video Ads V5")
             self.addTab(self.video_ads, "🛒 Video bán hàng")
-            
+
             # Tab 5: Clone Video
             if CloneVideoPanel:
                 try:
@@ -269,7 +269,7 @@ class MainWindow(QTabWidget):
             else:
                 self.clone_video = PlaceholderPanel("Clone Video")
             self.addTab(self.clone_video, "🎬 Clone Video")
-            
+
         except Exception as e:
             QMessageBox.critical(
                 self,
@@ -280,13 +280,13 @@ class MainWindow(QTabWidget):
             import traceback
             traceback.print_exc()
             sys.exit(1)
-    
+
     def _print_init_info(self):
         """Print initialization information"""
         print("\n" + "=" * 70)
         print("📊 PANEL STATUS")
         print("=" * 70)
-        
+
         panels = [
             ("⚙️  Settings", self.settings),
             ("🖼️  Image2Video", self.image2video),
@@ -294,25 +294,25 @@ class MainWindow(QTabWidget):
             ("🛒 Video Ads", self.video_ads),
             ("🎬 Clone Video", self.clone_video)
         ]
-        
+
         for name, panel in panels:
             panel_type = type(panel).__name__
             status = "✓" if not isinstance(panel, PlaceholderPanel) else "✗"
             print(f"{status} {name:15} {panel_type}")
-        
+
         print("=" * 70)
         print(f"📅 Version: {get_version()}")
         print(f"👤 User: chamnv-dev")
         print(f"📆 Date: 2025-01-05")
         print("=" * 70 + "\n")
-    
+
     def _load_state(self):
         """Load saved application state"""
         try:
             if cfg:
                 state = cfg.load()
                 last_tab = state.get('last_active_tab', 0)
-                
+
                 # Validate tab index
                 if 0 <= last_tab < self.count():
                     self.setCurrentIndex(last_tab)
@@ -321,7 +321,7 @@ class MainWindow(QTabWidget):
                     print(f"⚠️ Invalid tab index: {last_tab}, using default")
         except Exception as e:
             print(f"⚠️ Could not load state: {e}")
-    
+
     def closeEvent(self, event):
         """Save state when closing"""
         try:
@@ -332,7 +332,7 @@ class MainWindow(QTabWidget):
                 print(f"✓ Saved state: tab {self.currentIndex()}")
         except Exception as e:
             print(f"⚠️ Could not save state: {e}")
-        
+
         event.accept()
 
 
@@ -341,17 +341,17 @@ def setup_application():
     # High DPI support
     QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
     QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
-    
+
     # Create application
     app = QApplication(sys.argv)
     app.setApplicationName("Video Super Ultra")
     app.setApplicationDisplayName("Video Super Ultra V7")
     app.setOrganizationName("chamnv-dev")
     app.setOrganizationDomain("github.com/chamnv-dev")
-    
+
     # Set default font
     app.setFont(QFont("Segoe UI", 10))
-    
+
     # Set application icon (if available)
     try:
         icon_path = os.path.join(
@@ -362,7 +362,7 @@ def setup_application():
             app.setWindowIcon(QIcon(icon_path))
     except:
         pass
-    
+
     return app
 
 
@@ -377,51 +377,51 @@ def main():
     print(f"🐍 Python: {sys.version.split()[0]}")
     print(f"📂 Working Directory: {os.getcwd()}")
     print("=" * 70 + "\n")
-    
+
     # Setup application
     app = setup_application()
-    
+
     # Apply theme
     try:
         apply_theme(app)
         print("✓ Applied theme\n")
     except Exception as e:
         print(f"⚠️ Could not apply theme: {e}\n")
-    
+
     # Create and show main window
     try:
         window = MainWindow()
         window.show()
-        
+
         print("=" * 70)
         print("✅ APPLICATION STARTED SUCCESSFULLY!")
         print("=" * 70 + "\n")
-        
+
         # Start event loop
         exit_code = app.exec_()
-        
+
         print("\n" + "=" * 70)
         print("👋 APPLICATION CLOSED")
         print("=" * 70 + "\n")
-        
+
         sys.exit(exit_code)
-        
+
     except Exception as e:
         print("\n" + "=" * 70)
         print("❌ CRITICAL ERROR")
         print("=" * 70)
         print(f"Error: {e}\n")
-        
+
         import traceback
         traceback.print_exc()
-        
+
         QMessageBox.critical(
             None,
             "Critical Error",
             f"Application failed to start:\n\n{e}\n\n"
             "Please check console for details."
         )
-        
+
         sys.exit(1)
 
 

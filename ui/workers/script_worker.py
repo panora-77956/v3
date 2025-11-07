@@ -16,12 +16,12 @@ class ScriptWorker(QThread):
     progress = pyqtSignal(str)
     done = pyqtSignal(object)
     error = pyqtSignal(str)
-    
+
     def __init__(self, config):
         super().__init__()
         self.config = config
         self.should_stop = False
-    
+
     def run(self):
         try:
             self.progress.emit("Đang tạo kịch bản...")
@@ -48,14 +48,14 @@ class ScriptWorker(QThread):
             # Log full traceback for debugging
             print("[ERROR] JSONDecodeError in ScriptWorker:", file=sys.stderr)
             traceback.print_exc()
-            
+
         except ValueError as e:
             # Handle empty or invalid responses
             error_msg = f"ValueError: {str(e)}\n\nKhắc phục: Kiểm tra API key và kết nối mạng."
             self.error.emit(error_msg)
             print("[ERROR] ValueError in ScriptWorker:", file=sys.stderr)
             traceback.print_exc()
-            
+
         except Exception as e:
             # Include exception type name for better error classification
             error_type = type(e).__name__

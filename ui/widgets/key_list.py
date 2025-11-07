@@ -35,7 +35,7 @@ def mask_sensitive_text(text: str, show_chars: int = 8) -> str:
     """
     if not text or len(text) <= show_chars * 2:
         return text
-    
+
     return f"{text[:show_chars]}.....{text[-show_chars:]}"
 
 def _mask(s:str)->str:
@@ -56,7 +56,7 @@ class _KeyItem(QWidget):
         # Store full key in property and show in tooltip
         self.lb_key.setProperty("full_key", self.key)
         self.lb_key.setToolTip(f"Full key (selectable): {self.key}")
-        
+
         self.lb_status=QLabel(''); self.lb_status.setFont(FONT_TEXT)
         self.btn_test=QPushButton('✓'); self.btn_test.setObjectName('btn_check_kiem')
         self.btn_test.setMinimumHeight(32)
