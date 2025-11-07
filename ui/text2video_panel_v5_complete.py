@@ -22,8 +22,8 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
     QPushButton, QShortcut, QSlider, QSpinBox, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget, QTabWidget,
-    QFileDialog, QFrame, QApplication,QStackedWidget, QDialog,QGridLayout,
-    QSizePolicy # Added for responsive card sizing
+    QFileDialog, QFrame, QApplication, QStackedWidget, QDialog, QGridLayout,
+    QSizePolicy  # Added for responsive card sizing
 )
 
 # Original imports
@@ -163,7 +163,7 @@ class StoryboardView(QWidget):
         
         card = QFrame()
         card.setMinimumSize(240, 220)
-        # NEW: Remove maximum size to allow responsive scaling
+        # Set flexible size policy for responsive scaling (no maximum size constraint)
         card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         card.setCursor(Qt.PointingHandCursor)
         card.setStyleSheet("""
@@ -210,7 +210,7 @@ class StoryboardView(QWidget):
                 first_video = list(vids.values())[0]
                 video_path = first_video.get('path', '')
                 if video_path and os.path.exists(video_path):
-                    # BUG FIX #2: Use main_panel reference instead of parent() to avoid AttributeError
+                    # BUG FIX: Use main_panel reference instead of parent() to avoid AttributeError
                     thumb_label.mousePressEvent = lambda e, path=video_path: self.main_panel._play_video(path)
         else:
             thumb_label.setText("🖼️\nChưa tạo ảnh")
