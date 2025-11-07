@@ -181,16 +181,17 @@ def _trim_prompt_text(prompt_text: Any)->str:
                 except (IndexError, AttributeError):
                     pass
             
-            # 7. Audio/Voiceover language hint for Google Labs
-            # Note: Google Labs API doesn't support direct audio config, so we hint it in the text
+            # 7. Audio/Voiceover language and text for Google Labs
+            # Note: Google Labs API doesn't support direct audio config, so we include
+            # the voiceover text and language hint in the text prompt
             audio = obj.get("audio", {})
             if isinstance(audio, dict):
                 voiceover = audio.get("voiceover", {})
                 if isinstance(voiceover, dict):
                     vo_lang = voiceover.get("language", "")
                     vo_text = voiceover.get("text", "")
-                    if vo_lang and vo_text:
-                        # Add language hint to help Google Labs generate correct audio
+                    if vo_text:
+                        # Include the voiceover text to help Google Labs generate correct language audio
                         lang_names = {
                             "vi": "Vietnamese",
                             "en": "English", 
@@ -201,9 +202,9 @@ def _trim_prompt_text(prompt_text: Any)->str:
                             "fr": "French",
                             "de": "German"
                         }
-                        lang_name = lang_names.get(vo_lang, vo_lang)
-                        # Include a hint about the audio language
-                        parts.append(f"Audio: {lang_name} voiceover")
+                        lang_name = lang_names.get(vo_lang, vo_lang) if vo_lang else "Unknown"
+                        # Format: "[Language] voiceover: [text]"
+                        parts.append(f"[{lang_name} voiceover: {vo_text}]")
             
             # Combine all parts with space separator for cleaner formatting
             text = " ".join([p for p in parts if p])
