@@ -159,9 +159,17 @@ class CheckWorker(QObject):
     def run(self):
         names=[n for j in self.jobs for n in j.get("operation_names",[])]
         if not names: self.log.emit("INFO","[Check] chưa có operation."); self.finished.emit(); return
+        
+        # Collect metadata from jobs for batch check
+        metadata = {}
+        for j in self.jobs:
+            op_meta = j.get("operation_metadata", {})
+            if op_meta:
+                metadata.update(op_meta)
+        
         self.progress.emit(0, "Đang check…")
         try:
-            rs=self.client.batch_check_operations(names)
+            rs=self.client.batch_check_operations(names, metadata)
         except Exception as e:
             self.log.emit("ERR", f"Check lỗi: {e.__class__.__name__}: {e}"); self.finished.emit(); return
         total=max(1,len(self.jobs)); done=0
