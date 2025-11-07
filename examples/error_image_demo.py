@@ -115,7 +115,9 @@ class ErrorImageDemo(QMainWindow):
             if pixmap:
                 icon_label.setPixmap(pixmap)
             else:
-                icon_label.setText(name[0])
+                # Fallback to first letter if icon not available
+                fallback_char = {'Error': 'E', 'Warning': 'W', 'Success': 'S', 'Info': 'I'}
+                icon_label.setText(fallback_char.get(name, '?'))
                 icon_label.setFont(QFont("Segoe UI", 32))
             container_layout.addWidget(icon_label)
             

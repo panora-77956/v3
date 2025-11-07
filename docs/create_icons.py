@@ -2,8 +2,17 @@
 Create Error Icons Script
 Generates error, warning, success, and info icons for the application
 
+Requirements:
+    - Pillow (PIL): pip install Pillow
+
 Usage:
-    python create_icons.py
+    python docs/create_icons.py
+    
+This script will create 4 icon files in resources/icons/:
+- error.png (red)
+- warning.png (orange)
+- success.png (green)
+- info.png (blue)
     
 Author: chamnv-dev
 Date: 2025-11-07

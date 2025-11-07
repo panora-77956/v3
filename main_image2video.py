@@ -160,7 +160,7 @@ class PlaceholderPanel(QWidget):
                 # Fallback to emoji
                 icon_label.setText(EMOJI_FALLBACKS[IconType.WARNING])
                 icon_label.setFont(QFont("Segoe UI", 48))
-        except Exception:
+        except (ImportError, ModuleNotFoundError, AttributeError):
             # Fallback to emoji if icon utils fails
             icon_label.setText("⚠️")
             icon_label.setFont(QFont("Segoe UI", 48))

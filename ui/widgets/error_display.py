@@ -156,10 +156,16 @@ class ErrorDisplayWidget(QWidget):
         return f"color: {color};"
     
     def update_message(self, title: str = None, message: str = None):
-        """Update the displayed message"""
-        # This method is kept for API compatibility but not recommended
-        # to use frequently. For simple text updates, consider creating
-        # a new widget instance instead.
+        """
+        Update the displayed message
+        
+        NOTE: This operation recreates the entire widget layout which can be
+        expensive. For better performance:
+        - Create a new ErrorDisplayWidget instead of updating an existing one
+        - Or use this method only for infrequent updates (e.g., on user action)
+        
+        Performance: O(n) where n is the number of child widgets
+        """
         if title or message:
             # Clear old widgets
             while self.layout().count():
