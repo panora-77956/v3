@@ -669,14 +669,8 @@ def _validate_idea_relevance(idea, generated_content, threshold=0.15):
     idea_text = idea.lower()
     
     # Extract important words from idea (filter out common stop words)
-    vietnamese_stopwords = {
-        'và', 'các', 'của', 'là', 'được', 'có', 'trong', 'cho', 'với', 'để', 
-        'một', 'này', 'đó', 'những', 'như', 'về', 'từ', 'bởi', 'khi', 'sẽ',
-        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
-        'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'be', 'been'
-    }
-    
-    idea_words = [w for w in idea_text.split() if len(w) > 2 and w not in vietnamese_stopwords]
+    # Use module-level constant for better maintainability
+    idea_words = [w for w in idea_text.split() if len(w) >= MIN_WORD_LENGTH and w not in STOP_WORDS]
     
     if not idea_words:
         return True, 0.0, None  # Can't validate if no meaningful words
@@ -688,9 +682,11 @@ def _validate_idea_relevance(idea, generated_content, threshold=0.15):
     is_valid = similarity >= threshold
     
     if not is_valid:
+        # Smart truncation: only add '...' if idea is actually longer than max length
+        idea_display = idea if len(idea) <= MAX_IDEA_DISPLAY_LENGTH else idea[:MAX_IDEA_DISPLAY_LENGTH] + '...'
         warning = (
             f"⚠️ CẢNH BÁO: Kịch bản có thể không liên quan đến ý tưởng!\n"
-            f"   Ý tưởng: '{idea[:100]}...'\n"
+            f"   Ý tưởng: '{idea_display}'\n"
             f"   Độ liên quan: {similarity*100:.1f}% (ngưỡng tối thiểu: {threshold*100:.1f}%)\n"
             f"   Từ khóa trong ý tưởng: {', '.join(idea_words[:10])}\n"
             f"   Từ khóa xuất hiện: {', '.join(matched_words[:10]) if matched_words else 'Không có'}"
@@ -718,7 +714,6 @@ def _validate_dialogue_language(scenes, target_lang):
         return True, None
     
     issues = []
-    vietnamese_chars = set('àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ')
     
     for scene_idx, scene in enumerate(scenes, 1):
         dialogues = scene.get("dialogues", [])
@@ -726,8 +721,8 @@ def _validate_dialogue_language(scenes, target_lang):
             if isinstance(dlg, dict):
                 text_tgt = dlg.get("text_tgt", "")
                 if text_tgt:
-                    # Simple heuristic: check for Vietnamese characters
-                    has_vietnamese = any(c.lower() in vietnamese_chars for c in text_tgt)
+                    # Simple heuristic: check for Vietnamese characters using module constant
+                    has_vietnamese = any(c.lower() in VIETNAMESE_CHARS for c in text_tgt)
                     
                     # If target is not Vietnamese but text has Vietnamese chars
                     if has_vietnamese and target_lang != 'vi':
@@ -808,7 +803,8 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         # Note: We warn but don't fail - the UI can decide how to handle this
     
     # ISSUE #3 FIX: Validate idea relevance
-    is_relevant, relevance_score, warning_msg = _validate_idea_relevance(idea, res, threshold=0.15)
+    # Use module-level constant for threshold
+    is_relevant, relevance_score, warning_msg = _validate_idea_relevance(idea, res, threshold=IDEA_RELEVANCE_THRESHOLD)
     if not is_relevant and warning_msg:
         print(warning_msg)
         # Store warning in result so UI can display it to user

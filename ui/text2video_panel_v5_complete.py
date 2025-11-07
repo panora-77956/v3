@@ -56,6 +56,9 @@ except ImportError as e:
 FONT_H2 = QFont("Segoe UI", 15, QFont.Bold)  # +2px, bold
 FONT_BODY = QFont("Segoe UI", 13)
 
+# Warning dialog separator
+WARNING_SEPARATOR = "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
 class CollapsibleGroupBox(QGroupBox):
     """Collapsible group box"""
     def __init__(self, title="", parent=None, accordion_group=None):
@@ -1080,8 +1083,8 @@ class Text2VideoPanelV5(QWidget):
             QMessageBox.warning(
                 self,
                 "⚠️ Cảnh báo về Kịch bản",
-                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n".join(warnings_to_show) +
-                "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+                WARNING_SEPARATOR.join(warnings_to_show) +
+                WARNING_SEPARATOR +
                 "Bạn có thể tiếp tục sử dụng kịch bản này hoặc tạo lại."
             )
         
