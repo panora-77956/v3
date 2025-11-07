@@ -229,6 +229,8 @@ def _trim_prompt_text(prompt_text: Any)->str:
         return str(obj)[:MAX_PROMPT_LENGTH]
 
 class LabsClient:
+    MAX_RETRY_ATTEMPTS = 9  # Maximum total retry attempts across all tokens
+    
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
         if not self.tokens: raise ValueError("No Labs tokens provided")
@@ -252,15 +254,23 @@ class LabsClient:
             tokens_to_try = self.tokens.copy()
             self._invalid_tokens.clear()
         
-        max_attempts = min(3 * len(tokens_to_try), 9)  # Limit total attempts
-        for attempt in range(max_attempts):
+        max_attempts = min(3 * len(tokens_to_try), self.MAX_RETRY_ATTEMPTS)
+        attempts_made = 0
+        skip_count = 0  # Prevent infinite loop when all tokens are invalid
+        max_skips = len(self.tokens) * 2  # Allow skipping all tokens twice
+        
+        while attempts_made < max_attempts and skip_count < max_skips:
             current_token = None
             try:
                 # Get next token using round-robin
                 current_token = self._tok()
-                # Skip if this token is marked invalid
+                # Skip if this token is marked invalid (don't count as an attempt)
                 if current_token in self._invalid_tokens:
+                    skip_count += 1
                     continue
+                
+                attempts_made += 1
+                skip_count = 0  # Reset skip count when we make an actual attempt
                     
                 r=requests.post(url, headers=_headers(current_token), json=payload, timeout=self.timeout)
                 if r.status_code==200:
@@ -271,7 +281,8 @@ class LabsClient:
                 # Handle 401 Unauthorized - mark token as invalid and skip to next immediately
                 if r.status_code == 401:
                     self._invalid_tokens.add(current_token)
-                    error_msg = f"Token {current_token[:20]}... is invalid (401 Unauthorized)"
+                    token_id = f"Token #{self.tokens.index(current_token) + 1}" if current_token in self.tokens else "Unknown token"
+                    error_msg = f"{token_id} is invalid (401 Unauthorized)"
                     self._emit("http_other_err", code=401, detail=error_msg)
                     # Don't sleep, immediately try next token
                     last = requests.HTTPError(f"401 Client Error: Unauthorized for url: {url}")
@@ -291,9 +302,12 @@ class LabsClient:
                     # Don't sleep, try next token immediately
                     last=e
                     continue
-                last=e; time.sleep(0.7*(attempt+1))
+                last=e; time.sleep(0.7*(attempts_made))
             except Exception as e:
-                last=e; time.sleep(0.7*(attempt+1))
+                last=e; time.sleep(0.7*(attempts_made))
+        
+        if last is None:
+            last = Exception("All tokens are invalid or max attempts reached")
         raise last
 
     def upload_image_file(self, image_path: str, aspect_hint="IMAGE_ASPECT_RATIO_PORTRAIT")->Optional[str]:
