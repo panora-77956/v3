@@ -111,35 +111,45 @@ def _trim_prompt_text(prompt_text: Any)->str:
         if "key_action" in obj or "localization" in obj or "character_details" in obj:
             parts = []
             
-            # 1. Character consistency (CRITICAL for maintaining same character across scenes)
+            # 1. Identity lock (CRITICAL - must come first for character consistency)
+            hard_locks = obj.get("hard_locks", {})
+            if isinstance(hard_locks, dict):
+                identity_lock = hard_locks.get("identity")
+                if identity_lock:
+                    parts.append(str(identity_lock))
+            
+            # 2. Character consistency details
             if obj.get("character_details"):
                 parts.append(str(obj["character_details"]))
             
-            # 2. Location/setting consistency (CRITICAL for maintaining same location)
-            hard_locks = obj.get("hard_locks", {})
+            # 3. Location/setting consistency (CRITICAL for maintaining same location)
             if isinstance(hard_locks, dict):
                 location_lock = hard_locks.get("location")
                 if location_lock:
                     parts.append(str(location_lock))
-                # Add identity lock if not already in character_details
-                identity_lock = hard_locks.get("identity")
-                if identity_lock and "character_details" not in obj:
-                    parts.append(str(identity_lock))
             
-            # 3. Setting details
+            # 4. Setting details
             if obj.get("setting_details"):
                 parts.append(str(obj["setting_details"]))
             
-            # 4. Main scene description - try localization first, then key_action
+            # 5. Main scene description - try localization first, then key_action
             scene_description = ""
             
             # Try to get localized prompt (preferred)
             localization = obj.get("localization", {})
             if isinstance(localization, dict):
-                # Try to find the best language match
-                # Priority: vi (Vietnamese) > en (English) > first available
-                for lang in ["vi", "en"]:
-                    if lang in localization:
+                # Get target language from audio config if available
+                target_lang = None
+                audio = obj.get("audio", {})
+                if isinstance(audio, dict):
+                    voiceover = audio.get("voiceover", {})
+                    if isinstance(voiceover, dict):
+                        target_lang = voiceover.get("language", "vi")
+                
+                # Try target language first, then vi (Vietnamese) > en (English) > first available
+                lang_priority = [target_lang, "vi", "en"] if target_lang else ["vi", "en"]
+                for lang in lang_priority:
+                    if lang and lang in localization:
                         lang_data = localization[lang]
                         if isinstance(lang_data, dict) and "prompt" in lang_data:
                             scene_description = str(lang_data["prompt"])
@@ -159,7 +169,7 @@ def _trim_prompt_text(prompt_text: Any)->str:
             if scene_description:
                 parts.append(scene_description)
             
-            # 5. Camera direction hints (keep it brief)
+            # 6. Camera direction hints (keep it brief)
             camera_dir = obj.get("camera_direction", [])
             if isinstance(camera_dir, list) and camera_dir:
                 # Just include the first and last camera hints for brevity
@@ -171,13 +181,42 @@ def _trim_prompt_text(prompt_text: Any)->str:
                 except (IndexError, AttributeError):
                     pass
             
-            # Combine all parts
-            text = "\n\n".join([p for p in parts if p])
+            # 7. Audio/Voiceover language hint for Google Labs
+            # Note: Google Labs API doesn't support direct audio config, so we hint it in the text
+            audio = obj.get("audio", {})
+            if isinstance(audio, dict):
+                voiceover = audio.get("voiceover", {})
+                if isinstance(voiceover, dict):
+                    vo_lang = voiceover.get("language", "")
+                    vo_text = voiceover.get("text", "")
+                    if vo_lang and vo_text:
+                        # Add language hint to help Google Labs generate correct audio
+                        lang_names = {
+                            "vi": "Vietnamese",
+                            "en": "English", 
+                            "ja": "Japanese",
+                            "ko": "Korean",
+                            "zh": "Chinese",
+                            "es": "Spanish",
+                            "fr": "French",
+                            "de": "German"
+                        }
+                        lang_name = lang_names.get(vo_lang, vo_lang)
+                        # Include a hint about the audio language
+                        parts.append(f"Audio: {lang_name} voiceover")
+            
+            # Combine all parts with space separator for cleaner formatting
+            text = " ".join([p for p in parts if p])
             
             # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
             if len(text) > MAX_PROMPT_LENGTH:
-                # Keep: character_details + location_lock + scene_description
+                # Keep: identity_lock + character_details + location_lock + scene_description
                 priority_parts = []
+                
+                # Keep identity lock (critical)
+                if hard_locks and hard_locks.get("identity"):
+                    priority_parts.append(str(hard_locks["identity"]))
+                
                 if obj.get("character_details"):
                     # Truncate character_details if very long
                     char_details = str(obj["character_details"])
@@ -194,7 +233,7 @@ def _trim_prompt_text(prompt_text: Any)->str:
                         scene_description = scene_description[:MAX_SCENE_DESCRIPTION_LENGTH]
                     priority_parts.append(scene_description)
                 
-                text = "\n\n".join(priority_parts)
+                text = " ".join(priority_parts)
             
             return text
         

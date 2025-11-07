@@ -825,6 +825,10 @@ class Text2VideoPanelV5(QWidget):
         self.storyboard_view = StoryboardView(self)
         self.storyboard_view.scene_clicked.connect(self._show_prompt_detail)
         self.view_stack.addWidget(self.storyboard_view)
+        
+        # Set storyboard as default view
+        self.view_stack.setCurrentIndex(1)  # Storyboard is at index 1
+        self.btn_view_storyboard.setChecked(True)  # Mark storyboard button as checked
 
         scenes_layout.addWidget(self.view_stack)
         self.result_tabs.addTab(scenes_widget, "🎬 Kết quả cảnh")
