@@ -3,6 +3,22 @@ import os, json, requests
 from services.core.key_manager import get_key, get_all_keys, refresh
 from services.core.api_key_rotator import APIKeyRotator, APIKeyRotationError
 
+# Constants for validation
+IDEA_RELEVANCE_THRESHOLD = 0.15  # Minimum word overlap ratio (15%)
+MIN_WORD_LENGTH = 3  # Minimum word length for relevance checking (changed from 2 to 3)
+MAX_IDEA_DISPLAY_LENGTH = 100  # Maximum length for displaying idea in warnings
+
+# Vietnamese character set for language detection
+VIETNAMESE_CHARS = set('àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ')
+
+# Common stop words for relevance checking (Vietnamese and English)
+STOP_WORDS = {
+    'và', 'các', 'của', 'là', 'được', 'có', 'trong', 'cho', 'với', 'để', 
+    'một', 'này', 'đó', 'những', 'như', 'về', 'từ', 'bởi', 'khi', 'sẽ',
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'be', 'been'
+}
+
 def _load_keys():
     """Load keys using unified key manager"""
     gk = get_key('google')
