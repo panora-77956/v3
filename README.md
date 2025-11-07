@@ -120,6 +120,7 @@ python3 main_image2video.py
 ### User Guides
 - 🇬🇧 [English Guide](CODE_IMPROVEMENTS_GUIDE.md) - Detailed improvement guide
 - 🇻🇳 [Hướng Dẫn Tiếng Việt](HUONG_DAN_CAI_THIEN_VI.md) - Vietnamese guide
+- 🔒 [Security & Optimizations](SECURITY_OPTIMIZATIONS.md) - Security updates & performance
 
 ### Developer Docs
 - [Configuration Guide](docs/CONFIGURATION.md)
@@ -183,7 +184,12 @@ v3/
 - ✅ **Path Sanitization**: Prevents directory traversal
 - ✅ **SHA-256 Hashing**: Secure file hashing
 - ✅ **Config Validation**: Early error detection
-- ✅ **0 Vulnerabilities**: CodeQL verified
+- ✅ **0 Code Vulnerabilities**: CodeQL verified
+- ✅ **Secure Dependencies**: Updated Pillow >= 10.2.0, yt-dlp >= 2024.07.01
+
+**Latest Security Scan:** 2025-11-07  
+**Status:** ✅ All vulnerabilities patched  
+**Details:** See [SECURITY_OPTIMIZATIONS.md](SECURITY_OPTIMIZATIONS.md)
 
 ---
 
@@ -218,6 +224,14 @@ python3 -c "from utils.config_validator import validate_config; validate_config(
 ---
 
 ## 📊 Phiên Bản / Version History
+
+### v7.2.1 (2025-11-07) - Security & Optimization Release
+- 🔒 **Security**: Updated Pillow to 10.2.0+ (fixed CVE vulnerabilities)
+- 🔒 **Security**: Updated yt-dlp to 2024.07.01+ (fixed RCE & command injection)
+- ✨ **Optimization**: Removed 78 unused imports across 39 files
+- 📚 **Documentation**: Consolidated and archived historical docs (80% reduction)
+- 🧹 **Cleanup**: Better .gitignore patterns and code organization
+- ✅ **Verified**: CodeQL security scan - 0 code vulnerabilities
 
 ### v7.2.0 (2025-11-07)
 - ✅ Code improvements & cleanup
@@ -263,6 +277,6 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 **Made with ❤️ by chamnv-dev**
 
-**Version:** 7.2.0  
+**Version:** 7.2.1  
 **Updated:** 2025-11-07  
-**Status:** ✅ Production Ready
+**Status:** ✅ Production Ready & Secure
