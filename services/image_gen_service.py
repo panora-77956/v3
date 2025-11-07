@@ -114,7 +114,17 @@ def generate_image_gemini(prompt: str, timeout: int = None, retry_delay: float =
 
 # New implementation: Intelligent rate-limited image generation with API key rotation
 def generate_image_with_rate_limit(
+    prompt: str = None,
+    text: str = None,
+    api_keys: list = None,
+    model: str = "gemini",
     aspect_ratio: str = "1:1",
+    size: str = None,
+    delay_before: float = 0,
+    rate_limit_delay: float = 10.0,
+    max_calls_per_minute: int = 6,
+    logger = None,
+    log_callback = None,
     reference_images: list = None,
 ) -> Optional[bytes]:
     """
@@ -128,31 +138,38 @@ def generate_image_with_rate_limit(
     - Smart rotation that skips rate-limited keys
     
     Args:
-        prompt: Image generation prompt (REQUIRED)
+        prompt: Image generation prompt (alternative to 'text', one is required)
+        text: Image generation prompt (alternative to 'prompt', one is required)
         api_keys: List of API keys to rotate through (optional, uses config if not provided)
         model: Model to use (gemini, dalle, imagen_4, etc.)
         aspect_ratio: Image aspect ratio (e.g., "9:16", "16:9", "1:1", "4:5")
-        size: Image size
-        delay_before: Seconds to wait before making the call (default 0, no delay)
-        rate_limit_delay: Minimum seconds between calls (default 10.0)
-        max_calls_per_minute: Maximum API calls per minute (default 6)
         logger: Optional callback function for logging (alias for log_callback)
         log_callback: Optional callback function for logging
+        reference_images: Reference images for generation (optional)
         
-        # Legacy parameters (kept for backwards compatibility, ignored):
-        delay_before: Ignored - rotation manager handles delays
-        size: Ignored - use aspect_ratio instead
-        rate_limit_delay: Ignored - rotation manager handles delays
-        max_calls_per_minute: Ignored - rotation manager handles rate limits
+        # Legacy parameters (kept for backwards compatibility, currently not used):
+        size: Image size (legacy parameter for DALL-E, not currently used)
+        delay_before: Seconds to wait before call (not used - rotation manager handles delays)
+        rate_limit_delay: Minimum seconds between calls (not used - rotation manager handles this)
+        max_calls_per_minute: Maximum API calls per minute (not used - rotation manager handles this)
     
     Returns:
         Generated image bytes or None if generation fails
         
     Note:
+        - Either 'prompt' or 'text' parameter must be provided
         - For Imagen 4: Automatically normalizes 4:5 to 3:4 (closest supported ratio)
         - For Gemini: Accepts any aspect ratio from UI
-        - Legacy parameters (delay_before, size, etc.) are ignored - use new rotation manager
+        - Legacy parameters (size, delay_before, rate_limit_delay, max_calls_per_minute) are 
+          accepted for backward compatibility but are not used by the current implementation
     """
+    # Support both 'prompt' and 'text' parameter names for backward compatibility
+    if prompt is None and text is None:
+        raise ValueError("Either 'prompt' or 'text' parameter is required")
+    
+    # Use whichever is provided, preferring 'prompt' if both are given
+    actual_prompt = prompt if prompt is not None else text
+    
     # Support both logger and log_callback parameter names
     log_fn = logger or log_callback
 
@@ -201,7 +218,10 @@ def generate_image_with_rate_limit(
                 elif aspect_ratio in ("16:9", "21:9"):
                     aspect_hint = " (landscape orientation, horizontal format)"
 
-            enhanced_prompt = prompt + aspect_hint if aspect_hint else prompt
+            enhanced_prompt = actual_prompt + aspect_hint if aspect_hint else actual_prompt
+
+            # Build parts array for API payload
+            parts = [{"text": enhanced_prompt}]
 
             # Use APIKeyRotator for key rotation with shared API call logic
             def api_call_with_key(api_key: str) -> bytes:
@@ -232,7 +252,7 @@ def generate_image_with_rate_limit(
             # Import DALL-E client if available
             try:
                 from services.openai.dalle_client import generate_image
-                return generate_image(prompt, size=size)
+                return generate_image(actual_prompt, size=size)
             except ImportError:
                 log("[ERROR] DALL-E client không khả dụng")
                 return None
