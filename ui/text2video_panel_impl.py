@@ -119,7 +119,7 @@ def _build_setting_details(location_context):
         return f"{location_context}. {base_details}"
     return base_details
 
-def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str, ratio_str:str, style:str, seconds:int=8, copies:int=1, resolution_hint:str=None, character_bible=None, enhanced_bible=None, voice_settings=None, location_context:str=None, tts_provider:str=None, voice_id:str=None, voice_name:str=None, domain:str=None, topic:str=None, quality:str=None):
+def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str, ratio_str:str, style:str, seconds:int=8, copies:int=1, resolution_hint:str=None, character_bible=None, enhanced_bible=None, voice_settings=None, location_context:str=None, tts_provider:str=None, voice_id:str=None, voice_name:str=None, domain:str=None, topic:str=None, quality:str=None, dialogues:list=None):
     """
     Enhanced prompt JSON schema with comprehensive metadata:
     - Full persona with expertise_context
@@ -131,6 +131,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     Part D: Now supports enhanced_bible (CharacterBible object) for detailed character consistency
     Part E: Now supports location_context for maintaining consistent backgrounds across scenes
     Part F: Enhanced audio, domain_context, and metadata fields (Issue #5)
+    Part G: Now supports dialogues for proper voiceover generation (Issue #7)
     """
     
     ratio_map = {
@@ -226,15 +227,40 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             mot = main.get("motivation", "")
             character_details = f"CRITICAL: Keep same person/character across all scenes. {nm} ({role}) — trait: {key}; motivation: {mot}. Keep appearance and demeanor consistent."
 
-    # Enhanced: Match voiceover language with target language setting
-    # Logic:
-    #   - IF lang_code == "vi" (Vietnamese) → Use desc_vi (Vietnamese prompt)
-    #   - ELSE (en, ja, ko, zh, fr, de, es, ru, th, id) → Use desc_tgt (Target language prompt)
-    # This ensures voiceover text matches the selected TTS language
-    if lang_code == "vi":
-        vo_text = (desc_vi or desc_tgt or "").strip()
-    else:
-        vo_text = (desc_tgt or desc_vi or "").strip()
+    # Part G: Build voiceover text from dialogues when available
+    # Priority: dialogues > scene description
+    # This ensures the TTS speaks actual dialogue, not visual description
+    vo_text = ""
+    if dialogues:
+        # Extract dialogue text based on target language
+        dialogue_texts = []
+        for dlg in dialogues:
+            if isinstance(dlg, dict):
+                # Determine which text field to use based on language
+                text_field = "text_vi" if lang_code == "vi" else "text_tgt"
+                fallback_field = "text_tgt" if lang_code == "vi" else "text_vi"
+                text = dlg.get(text_field) or dlg.get(fallback_field) or ""
+                
+                speaker = dlg.get("speaker", "")
+                if speaker and text:
+                    dialogue_texts.append(f"{speaker}: {text}")
+                elif text:
+                    dialogue_texts.append(text)
+        
+        if dialogue_texts:
+            vo_text = " ".join(dialogue_texts).strip()
+    
+    # Fallback to scene description if no dialogues
+    if not vo_text:
+        # Enhanced: Match voiceover language with target language setting
+        # Logic:
+        #   - IF lang_code == "vi" (Vietnamese) → Use desc_vi (Vietnamese prompt)
+        #   - ELSE (en, ja, ko, zh, fr, de, es, ru, th, id) → Use desc_tgt (Target language prompt)
+        # This ensures voiceover text matches the selected TTS language
+        if lang_code == "vi":
+            vo_text = (desc_vi or desc_tgt or "").strip()
+        else:
+            vo_text = (desc_tgt or desc_vi or "").strip()
     
     # Part D: NEVER truncate voiceover - prompt optimizer will handle this
     # if len(vo_text)>240: vo_text = vo_text[:240] + "…"

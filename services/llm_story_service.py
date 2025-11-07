@@ -208,13 +208,37 @@ IMPORTANT LANGUAGE REQUIREMENT:
 - Do NOT mix languages unless specifically requested
 """
     
-    # Style-specific guidance for better alignment with user's idea
-    style_guidance = _get_style_specific_guidance(style_vi)
+    # Detect if user provided detailed screenplay vs just idea
+    # Indicators: SCENE, ACT, INT./EXT., character profiles, dàn ý, kịch bản, screenplay
+    idea_lower = (idea or "").lower()
+    has_screenplay_markers = any(marker in idea_lower for marker in [
+        'scene ', 'act 1', 'act 2', 'act 3', 'int.', 'ext.', 
+        'kịch bản', 'screenplay', 'dàn ý', 'hồ sơ nhân vật',
+        'fade in', 'fade out', 'close up', 'cut to'
+    ])
+    
+    # Adjust instructions based on input type
+    if has_screenplay_markers:
+        input_type_instruction = """
+**QUAN TRỌNG**: Người dùng đã cung cấp kịch bản CHI TIẾT. Nhiệm vụ của bạn:
+1. TUÂN THỦ chặt chẽ nội dung, nhân vật, và cấu trúc câu chuyện đã cho
+2. Chỉ điều chỉnh nhẹ để phù hợp format video (visual prompts, timing)
+3. GIỮ NGUYÊN ý tưởng gốc, tính cách nhân vật, và luồng cảm xúc
+4. KHÔNG sáng tạo lại hoặc thay đổi concept cốt lõi
+"""
+        base_role = f"""
+Bạn là **Biên kịch Chuyển đổi Format AI**. Nhận **kịch bản chi tiết** và chuyển đổi thành **format video tối ưu** mà KHÔNG thay đổi nội dung gốc.
+Mục tiêu: GIỮ NGUYÊN câu chuyện và nhân vật, chỉ tối ưu hóa cho video format."""
+    else:
+        input_type_instruction = ""
+        base_role = f"""
+Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
+Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên."""
     
     base_rules = f"""
-Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
-Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên.
+{base_role}
 
+{input_type_instruction}
 {language_instruction}
 
 {style_guidance}
@@ -316,19 +340,19 @@ Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài J
 
 {{
   "title_vi": "Tiêu đề HẤP DẪN, gây tò mò (VI)",
-  "title_tgt": "Compelling title in {out_lang}",
+  "title_tgt": "Compelling title in {target_language}",
   "hook_summary": "Mô tả hook 3s đầu - điều gì khiến người xem PHẢI xem tiếp?",
   "character_bible": [{{"name":"","role":"","key_trait":"","motivation":"","default_behavior":"","visual_identity":"","archetype":"","fatal_flaw":"","goal_external":"","goal_internal":""}}],
   "character_bible_tgt": [{{"name":"","role":"","key_trait":"","motivation":"","default_behavior":"","visual_identity":"","archetype":"","fatal_flaw":"","goal_external":"","goal_internal":""}}],
   "outline_vi": "Dàn ý theo {mode}: ACT structure + key emotional beats + major plot points",
-  "outline_tgt": "Outline in {out_lang}",
+  "outline_tgt": "Outline in {target_language}",
   "screenplay_vi": "Screenplay chi tiết: INT./EXT. LOCATION - TIME\\nACTION (visual, cinematic)\\nDIALOGUE\\n- Bao gồm camera angles, lighting, mood, transitions",
-  "screenplay_tgt": "Full screenplay in {out_lang}",
+  "screenplay_tgt": "Full screenplay in {target_language}",
   "emotional_arc": "Cung cảm xúc của story: [Start emotion] → [Peaks & Valleys] → [End emotion]",
   "scenes": [
     {{
       "prompt_vi":"Visual prompt SIÊU CỤ THỂ (action, lighting, camera, mood, characters) - 2-3 câu cinematic",
-      "prompt_tgt":"Detailed visual prompt in {out_lang}",
+      "prompt_tgt":"Detailed visual prompt in {target_language}",
       "duration": 8,
       "characters": ["Nhân vật xuất hiện"],
       "location": "Location cụ thể",
@@ -338,7 +362,7 @@ Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài J
       "emotion": "Cảm xúc chủ đạo của scene",
       "story_beat": "Plot point: Setup/Rising action/Twist/Climax/Resolution",
       "dialogues": [
-        {{"speaker":"Tên","text_vi":"Thoại tự nhiên, có subtext","text_tgt":"Natural line in {out_lang}","emotion":"angry/sad/happy/etc"}}
+        {{"speaker":"Tên","text_vi":"Thoại tự nhiên, có subtext","text_tgt":"Natural line in {target_language}","emotion":"angry/sad/happy/etc"}}
       ],
       "visual_notes": "Ghi chú thêm về visuals: props, colors, symbolism, transitions"
     }}
@@ -350,15 +374,18 @@ Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài J
 - Prompts PHẢI visual & cinematic (tránh abstract)
 - Mỗi scene có emotion & story beat rõ ràng
 """.strip()
+    
+    # Adjust input label based on detected type
+    input_label = "Kịch bản chi tiết" if has_screenplay_markers else "Ý tưởng thô"
 
     return f"""{base_rules}
 
 ĐẦU VÀO:
-- Ý tưởng thô: "{idea}"
+- {input_label}: "{idea}"
 - Phong cách: "{style_vi}"
 - Chế độ: {mode}
 - Số cảnh kỹ thuật: {n} (mỗi cảnh 8s; cảnh cuối {per[-1]}s)
-- Ngôn ngữ đích: {out_lang}
+- Ngôn ngữ đích: {target_language}
 
 {schema}
 """
