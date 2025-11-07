@@ -418,7 +418,7 @@ class LabsClient:
                 last_err=e3
 
         # 3) Per-copy fallback (still invalid)
-        job.setdefault("operation_names",[]); job.setdefault("video_by_idx", [None]*copies); job.setdefault("thumb_by_idx", [None]*copies); job.setdefault("op_index_map", {})
+        job.setdefault("operation_names",[]); job.setdefault("video_by_idx", [None]*copies); job.setdefault("thumb_by_idx", [None]*copies); job.setdefault("op_index_map", {}); job.setdefault("operation_metadata", {})
         if data is None and last_err is not None:
             for k in range(copies):
                 for mkey in models:
@@ -427,7 +427,15 @@ class LabsClient:
                         ops=dat.get("operations",[]) if isinstance(dat,dict) else []
                         if ops:
                             nm=(ops[0].get("operation") or {}).get("name") or ops[0].get("name") or ""
-                            if nm: job["operation_names"].append(nm); job["op_index_map"][nm]=k; break
+                            if nm: 
+                                job["operation_names"].append(nm)
+                                job["op_index_map"][nm]=k
+                                # Store metadata for batch check
+                                scene_id = ops[0].get("sceneId", "")
+                                status = ops[0].get("status", "MEDIA_GENERATION_STATUS_PENDING")
+                                if scene_id or status:
+                                    job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
+                                break
                     except Exception: continue
             return len(job.get("operation_names",[]))
 
@@ -437,22 +445,63 @@ class LabsClient:
                    has_operations_key="operations" in (data if isinstance(data, dict) else {}))
         for ci,op in enumerate(ops):
             nm=(op.get("operation") or {}).get("name") or op.get("name") or ""
-            if nm: job["operation_names"].append(nm); job["op_index_map"][nm]=ci
+            if nm: 
+                job["operation_names"].append(nm)
+                job["op_index_map"][nm]=ci
+                # Store metadata for batch check (sceneId and status from Google API)
+                scene_id = op.get("sceneId", "")
+                status = op.get("status", "MEDIA_GENERATION_STATUS_PENDING")
+                if scene_id or status:
+                    job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
         if job.get("operation_names"): job["status"]="PENDING"
         
         final_count = len(job.get("operation_names",[]))
         self._emit("start_one_result", operation_count=final_count, requested_copies=copies)
         return final_count
 
-    def _wrap_ops(self, op_names: List[str])->dict:
+    def _wrap_ops(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->dict:
+        """
+        Wrap operation names into the payload format for batch check.
+        
+        Args:
+            op_names: List of operation names
+            metadata: Optional dict mapping operation name to metadata (sceneId, status)
+        
+        Returns:
+            Payload dict with operations list
+        """
         uniq=[]; seen=set()
         for s in op_names or []:
             if s and s not in seen: seen.add(s); uniq.append(s)
-        return {"operations":[{"operation":{"name":s}} for s in uniq]}
+        
+        # Build operations list with metadata if available
+        operations = []
+        for op_name in uniq:
+            op_entry = {"operation": {"name": op_name}}
+            # Include sceneId and status if available in metadata
+            if metadata and op_name in metadata:
+                meta = metadata[op_name]
+                if meta.get("sceneId"):
+                    op_entry["sceneId"] = meta["sceneId"]
+                if meta.get("status"):
+                    op_entry["status"] = meta["status"]
+            operations.append(op_entry)
+        
+        return {"operations": operations}
 
-    def batch_check_operations(self, op_names: List[str])->Dict[str,Dict]:
+    def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->Dict[str,Dict]:
+        """
+        Check status of video generation operations.
+        
+        Args:
+            op_names: List of operation names to check
+            metadata: Optional dict mapping operation name to metadata (sceneId, status)
+        
+        Returns:
+            Dict mapping operation name to status info
+        """
         if not op_names: return {}
-        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names)) or {}
+        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata)) or {}
         out={}
         def _dedup(xs):
             seen=set(); r=[]

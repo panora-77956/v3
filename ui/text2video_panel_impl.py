@@ -708,13 +708,18 @@ class _Worker(QObject):
 
             # Extract all operation names from all jobs
             names = []
+            metadata = {}
             for job_info in jobs:
                 job_dict = job_info['body']
                 names.extend(job_dict.get("operation_names", []))
+                # Collect metadata for batch check
+                op_meta = job_dict.get("operation_metadata", {})
+                if op_meta:
+                    metadata.update(op_meta)
 
             # Batch check with error handling
             try:
-                rs = client.batch_check_operations(names)
+                rs = client.batch_check_operations(names, metadata if metadata else None)
             except Exception as e:
                 self.log.emit(f"[WARN] Lỗi kiểm tra trạng thái (vòng {poll_round + 1}): {e}")
                 import time
@@ -1192,16 +1197,21 @@ class _Worker(QObject):
 
                 # Extract all operation names for this client
                 names = []
+                metadata = {}
                 for job_info in client_job_list:
                     job_dict = job_info['body']
                     names.extend(job_dict.get("operation_names", []))
+                    # Collect metadata for batch check
+                    op_meta = job_dict.get("operation_metadata", {})
+                    if op_meta:
+                        metadata.update(op_meta)
 
                 if not names:
                     continue
 
                 # Batch check
                 try:
-                    rs = client.batch_check_operations(names)
+                    rs = client.batch_check_operations(names, metadata if metadata else None)
                 except Exception as e:
                     self.log.emit(f"[WARN] Poll error (round {poll_round + 1}): {e}")
                     time.sleep(10)
