@@ -61,6 +61,9 @@ _MODEL_DISPLAY_NAMES = {
     "veo_2_i2v_001": "Veo2 i2v"
 }
 
+# Error message truncation limit for logging
+_MAX_ERROR_MESSAGE_LENGTH = 100
+
 def get_model_key_from_display(display_name):
     """Convert display name back to API key"""
     for key, display in _MODEL_DISPLAY_NAMES.items():
@@ -1069,7 +1072,7 @@ class _Worker(QObject):
 
                 except Exception as e:
                     # Exception during scene start - create failure cards
-                    error_msg = f"Exception during start: {str(e)[:100]}"
+                    error_msg = f"Exception during start: {str(e)[:_MAX_ERROR_MESSAGE_LENGTH]}"
                     results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
                     
                     for copy_idx in range(1, copies + 1):
