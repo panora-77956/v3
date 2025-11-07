@@ -1138,15 +1138,38 @@ class _Worker(QObject):
                                     self.log.emit(f"[DOWNLOAD] Scene {scene} Copy {copy_num}: Downloaded")
                                 else:
                                     card["status"] = "DOWNLOAD_FAILED"
+                                    card["error_reason"] = "Tải video thất bại"
                             
                             self.job_card.emit(card)
                         else:
-                            new_jobs.append(job_info)
+                            # Video marked successful but no URL - error state
+                            self.log.emit(f"[ERR] Scene {scene} Copy {copy_num}: Không có URL video trong phản hồi")
+                            card["status"] = "DONE_NO_URL"
+                            card["error_reason"] = "Không có URL video"
+                            self.job_card.emit(card)
                     
                     elif status in ['MEDIA_GENERATION_STATUS_FAILED', 'MEDIA_GENERATION_STATUS_BLOCKED']:
+                        # Extract detailed error information from API response
+                        error_info = raw_response.get('operation', {}).get('error', {})
+                        error_message = error_info.get('message', '')
+                        
+                        # Categorize the error for better user understanding
+                        if 'quota' in error_message.lower() or 'limit' in error_message.lower():
+                            error_reason = "Vượt quota API"
+                        elif 'policy' in error_message.lower() or 'content' in error_message.lower() or 'safety' in error_message.lower():
+                            error_reason = "Nội dung không phù hợp (vi phạm chính sách)"
+                        elif 'timeout' in error_message.lower():
+                            error_reason = "Timeout - quá thời gian chờ"
+                        elif status == 'MEDIA_GENERATION_STATUS_BLOCKED':
+                            error_reason = "Bị chặn (nội dung vi phạm)"
+                        elif error_message:
+                            error_reason = error_message[:80]
+                        else:
+                            error_reason = "Tạo video thất bại"
+                        
                         card["status"] = "FAILED"
-                        card["error_reason"] = status
-                        self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {status}")
+                        card["error_reason"] = error_reason
+                        self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {error_reason}")
                         self.job_card.emit(card)
                     
                     else:
