@@ -247,7 +247,8 @@ class SceneDetector:
             try:
                 num, den = map(int, fps_str.split('/'))
                 fps = num / den if den != 0 else 30.0
-            except:
+            except (ValueError, ZeroDivisionError, AttributeError) as e:
+                self.log(f"[SceneDetector] Warning: Could not parse FPS '{fps_str}': {e}")
                 fps = 30.0
             
             return {

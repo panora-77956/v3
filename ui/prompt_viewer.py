@@ -19,7 +19,8 @@ class PromptViewer(QDialog):
         # Parse JSON
         try:
             self.data = json.loads(prompt_json)
-        except:
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"[Warning] Could not parse prompt JSON: {e}")
             self.data = {}
         
         self.prompt_json = prompt_json
