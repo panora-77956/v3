@@ -96,12 +96,21 @@ def _trim_prompt_text(prompt_text: Any)->str:
         return str(obj)[:1800]
 
 class LabsFlowClient:
+    """
+    Google Labs Flow Client with multi-token rotation support
+    
+    Features:
+    - Automatic token rotation across multiple API keys for load balancing
+    - Robust error handling with retries
+    - Supports both I2V (image-to-video) and T2V (text-to-video) generation
+    """
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
         if not self.tokens: raise ValueError("No Labs tokens provided")
         self._idx=0; self.timeout=timeout; self.on_event=on_event
 
     def _tok(self)->str:
+        """Get next token using round-robin rotation for load balancing"""
         t=self.tokens[self._idx % len(self.tokens)]; self._idx+=1; return t
 
     def _emit(self, kind: str, **kw):

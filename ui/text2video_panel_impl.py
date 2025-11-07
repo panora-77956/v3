@@ -457,7 +457,11 @@ class _Worker(QObject):
             elif self.task == "video":
                 self._run_video()
         except Exception as e:
-            self.log.emit(f"[ERR] {e}")
+            # Include traceback for better debugging
+            import traceback
+            error_details = traceback.format_exc()
+            self.log.emit(f"[ERR] Worker error: {e}")
+            self.log.emit(f"[DEBUG] {error_details}")
         finally:
             # BUG FIX: Emit finished signal for both script and video tasks
             # This ensures UI buttons are re-enabled and thread is cleaned up
@@ -812,12 +816,26 @@ class _Worker(QObject):
 
             if jobs:
                 poll_info = f"vòng {poll_round + 1}/120"
-                self.log.emit(f"[INFO] Đang chờ {len(jobs)} video ({poll_info})...")
+                # Warn if approaching timeout
+                if poll_round >= 100:
+                    self.log.emit(f"[WARN] Đang chờ {len(jobs)} video ({poll_info}) - sắp hết thời gian chờ!")
+                else:
+                    self.log.emit(f"[INFO] Đang chờ {len(jobs)} video ({poll_info})...")
                 try:
                     import time
                     time.sleep(5)
                 except Exception:
                     pass
+        
+        # If we exit the loop with remaining jobs, they timed out
+        if jobs:
+            self.log.emit(f"[WARN] Hết thời gian chờ, còn {len(jobs)} video chưa hoàn thành")
+            for job_info in jobs:
+                card = job_info['card']
+                if card.get("status") == "PROCESSING":
+                    card["status"] = "TIMEOUT"
+                    card["error_reason"] = "Quá thời gian chờ (timeout)"
+                    self.job_card.emit(card)
 
         # 4K upscale
 
@@ -1137,15 +1155,38 @@ class _Worker(QObject):
                                     self.log.emit(f"[DOWNLOAD] Scene {scene} Copy {copy_num}: Downloaded")
                                 else:
                                     card["status"] = "DOWNLOAD_FAILED"
-
+                                    card["error_reason"] = "Tải video thất bại"
+                            
                             self.job_card.emit(card)
                         else:
-                            new_jobs.append(job_info)
-
+                            # Video marked successful but no URL - error state
+                            self.log.emit(f"[ERR] Scene {scene} Copy {copy_num}: Không có URL video trong phản hồi")
+                            card["status"] = "DONE_NO_URL"
+                            card["error_reason"] = "Không có URL video"
+                            self.job_card.emit(card)
+                    
                     elif status in ['MEDIA_GENERATION_STATUS_FAILED', 'MEDIA_GENERATION_STATUS_BLOCKED']:
+                        # Extract detailed error information from API response
+                        error_info = raw_response.get('operation', {}).get('error', {})
+                        error_message = error_info.get('message', '')
+                        
+                        # Categorize the error for better user understanding
+                        if 'quota' in error_message.lower() or 'limit' in error_message.lower():
+                            error_reason = "Vượt quota API"
+                        elif 'policy' in error_message.lower() or 'content' in error_message.lower() or 'safety' in error_message.lower():
+                            error_reason = "Nội dung không phù hợp (vi phạm chính sách)"
+                        elif 'timeout' in error_message.lower():
+                            error_reason = "Timeout - quá thời gian chờ"
+                        elif status == 'MEDIA_GENERATION_STATUS_BLOCKED':
+                            error_reason = "Bị chặn (nội dung vi phạm)"
+                        elif error_message:
+                            error_reason = error_message[:80]
+                        else:
+                            error_reason = "Tạo video thất bại"
+                        
                         card["status"] = "FAILED"
-                        card["error_reason"] = status
-                        self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {status}")
+                        card["error_reason"] = error_reason
+                        self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {error_reason}")
                         self.job_card.emit(card)
 
                     else:
@@ -1160,9 +1201,23 @@ class _Worker(QObject):
             jobs = [job for job_list in client_jobs.values() for job in job_list]
 
             if jobs:
-                self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
+                # Warn if approaching timeout
+                if poll_round >= 100:
+                    self.log.emit(f"[WARN] Waiting for {len(jobs)} videos (round {poll_round + 1}/120) - approaching timeout!")
+                else:
+                    self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
                 time.sleep(5)
-
+        
+        # If we exit the loop with remaining jobs, they timed out
+        if jobs:
+            self.log.emit(f"[WARN] Polling timeout reached, {len(jobs)} videos still processing")
+            for job_info in jobs:
+                card = job_info['card']
+                if card.get("status") == "PROCESSING":
+                    card["status"] = "TIMEOUT"
+                    card["error_reason"] = "Polling timeout (quá thời gian chờ)"
+                    self.job_card.emit(card)
+        
         # 4K upscale if requested
         if up4k and shutil.which("ffmpeg"):
             self.log.emit("[INFO] Starting 4K upscale...")
