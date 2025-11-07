@@ -194,7 +194,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
                     role = char.get("role", "")
                     visual = char.get("visual_identity", "")
                     key_trait = char.get("key_trait", "")
-                    
+
                     if nm:
                         # Build character description with visual identity
                         parts = [f"{nm}"]
@@ -204,9 +204,9 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
                             parts.append(f"— Visual: {visual}")
                         if key_trait:
                             parts.append(f"Trait: {key_trait}")
-                        
+
                         char_parts.append(" ".join(parts))
-            
+
             if char_parts:
                 character_details = "CRITICAL: Keep same person/character across all scenes. " + "; ".join(char_parts) + ". Keep appearance and demeanor consistent across all scenes."
         except Exception as e:
@@ -390,9 +390,86 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         "platform_optimization": ["youtube_shorts", "tiktok", "instagram_reels"]
     }
 
+    # Build Task_Instructions for better language control and voiceover quality
+    task_instructions = []
+
+    # 1. Duration instruction
+    task_instructions.append(f"Create a video clip lasting approximately {seconds} seconds.")
+
+    # 2. CRITICAL: Language requirement
+    lang_name_map = {
+        'vi': 'Vietnamese',
+        'en': 'English',
+        'ja': 'Japanese',
+        'ko': 'Korean',
+        'zh': 'Chinese',
+        'fr': 'French',
+        'de': 'German',
+        'es': 'Spanish',
+        'ru': 'Russian',
+        'th': 'Thai',
+        'id': 'Indonesian'
+    }
+    lang_name = lang_name_map.get(lang_code, 'Vietnamese')
+    task_instructions.append(
+        f"CRITICAL: All voiceover dialogue MUST be in {lang_name} ({lang_code})."
+    )
+
+    # 3. Voiceover with emotional cues
+    if vo_text:
+        # Extract emotional cues from speaking_style
+        emotional_cues = []
+
+        if speaking_style == "storytelling":
+            emotional_cues.append("narration tone")
+        elif speaking_style == "conversational":
+            emotional_cues.append("casual, friendly")
+        elif speaking_style == "enthusiastic":
+            emotional_cues.append("energetic, enthusiastic")
+        elif speaking_style == "calm_relaxed":
+            emotional_cues.append("calm, relaxed")
+        elif speaking_style == "educational":
+            emotional_cues.append("clear, educational")
+        elif speaking_style == "professional_presentation":
+            emotional_cues.append("professional, formal")
+
+        # Add emotion based on scene description (simple keyword matching)
+        desc_lower = (desc_vi or desc_tgt or "").lower()
+        if any(word in desc_lower for word in ["tức giận", "angry", "giận dữ", "rage", "furious"]):
+            emotional_cues.append("tức giận")
+        if any(word in desc_lower for word in ["vui", "happy", "hào hứng", "joy", "excited"]):
+            emotional_cues.append("vui vẻ")
+        if any(word in desc_lower for word in ["buồn", "sad", "lo lắng", "worry", "melancholy"]):
+            emotional_cues.append("buồn bã")
+        if any(word in desc_lower for word in ["sợ", "fear", "kinh hoàng", "terror", "afraid"]):
+            emotional_cues.append("sợ hãi")
+        if any(word in desc_lower for word in ["lạnh lùng", "cold", "sắc lạnh", "stern"]):
+            emotional_cues.append("lạnh lùng")
+        if any(word in desc_lower for word in ["bí ẩn", "mysterious", "mystery"]):
+            emotional_cues.append("bí ẩn")
+        if any(word in desc_lower for word in ["hài hước", "funny", "comedy", "laugh"]):
+            emotional_cues.append("hài hước")
+
+        # Build emotion prefix
+        emotion_prefix = f"[{', '.join(emotional_cues)}] " if emotional_cues else ""
+        task_instructions.append(f"voiceover: '{emotion_prefix}{vo_text}'")
+
+    # 4. Visual style from constraints
+    if style_tags:
+        style_desc = ", ".join(style_tags)
+        task_instructions.append(f"Visual style: {style_desc}")
+
+    # 5. Character consistency reminder
+    if character_bible or enhanced_bible:
+        task_instructions.append(
+            "Character consistency: Maintain exact character appearance as "
+            "described in character_details."
+        )
+
     data = {
         "scene_id": f"s{scene_index:02d}",
         "objective": "Generate a short video clip for this scene based on screenplay and prompts.",
+        "Task_Instructions": task_instructions,
         "persona": persona,
         "constraints": {
             "duration_seconds": seconds,
@@ -421,9 +498,9 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             # Actual rendering is performed by the video generation service (e.g., Veo API)
             # or post-processing pipeline. This config ensures subtitles are enabled
             # with correct language and styling.
-            "subtitles": { 
-                "enabled": True, 
-                "language": lang_code or "vi", 
+            "subtitles": {
+                "enabled": True,
+                "language": lang_code or "vi",
                 "style": "clean small caps, bottom-safe",
                 "animation": "fade-in"
             },
@@ -435,14 +512,14 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "No brand logos unless present in references.",
             "No unrealistic X-ray views; use graphic overlays only."
         ],
-        "generation": { 
-            "seed": __import__("random").randint(0, 2**31-1), 
+        "generation": {
+            "seed": __import__("random").randint(0, 2**31-1),
             "copies": copies,
             "quality": quality or "standard",
             "consistency_mode": "strict"
         },
-        "localization": { 
-            "vi": {"prompt": (desc_vi or '').strip()}, 
+        "localization": {
+            "vi": {"prompt": (desc_vi or '').strip()},
             (lang_code if lang_code else "en"): {"prompt": (desc_tgt or desc_vi or '').strip()}
         }
     }
@@ -556,10 +633,10 @@ class _Worker(QObject):
 
         # Generate script with voice and domain/topic settings
         data = generate_script(
-            idea=p["idea"], 
-            style=p["style"], 
+            idea=p["idea"],
+            style=p["style"],
             duration_seconds=p["duration"],
-            provider=p["provider"], 
+            provider=p["provider"],
             output_lang=p["out_lang_code"],
             domain=p.get("domain"),
             topic=p.get("topic"),
@@ -658,7 +735,7 @@ class _Worker(QObject):
         jobs = []
         # Cache for LabsClient instances by project_id to avoid redundant creation
         client_cache = {}
-        
+
         # Event handler for diagnostic logging (uses helper method)
         def on_labs_event(event):
             self._handle_labs_event(event, self.log.emit)
@@ -904,7 +981,7 @@ class _Worker(QObject):
                     time.sleep(5)
                 except Exception:
                     pass
-        
+
         # If we exit the loop with remaining jobs, they timed out
         if jobs:
             self.log.emit(f"[WARN] Hết thời gian chờ, còn {len(jobs)} video chưa hoàn thành")
@@ -1061,7 +1138,7 @@ class _Worker(QObject):
                 def log_to_queue(msg):
                     results_queue.put(("log", msg))
                 self._handle_labs_event(event, log_to_queue)
-            
+
             # Create client for this account with event handler
             client = LabsClient(account.tokens, on_event=on_labs_event)
 
@@ -1156,7 +1233,7 @@ class _Worker(QObject):
                     # Exception during scene start - create failure cards
                     error_msg = f"Exception during start: {str(e)[:_MAX_ERROR_MESSAGE_LENGTH]}"
                     results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
-                    
+
                     for copy_idx in range(1, copies + 1):
                         card = {
                             "scene": scene_idx,
@@ -1170,7 +1247,7 @@ class _Worker(QObject):
                             "dir": dir_videos
                         }
                         results_queue.put(("card", card))
-                    
+
                     results_queue.put(("scene_started", (scene_idx, [])))
 
             results_queue.put(("log", f"{thread_name}: Batch complete"))
@@ -1296,7 +1373,7 @@ class _Worker(QObject):
                                 else:
                                     card["status"] = "DOWNLOAD_FAILED"
                                     card["error_reason"] = "Tải video thất bại"
-                            
+
                             self.job_card.emit(card)
                         else:
                             # Video marked successful but no URL - error state
@@ -1304,12 +1381,12 @@ class _Worker(QObject):
                             card["status"] = "DONE_NO_URL"
                             card["error_reason"] = "Không có URL video"
                             self.job_card.emit(card)
-                    
+
                     elif status in ['MEDIA_GENERATION_STATUS_FAILED', 'MEDIA_GENERATION_STATUS_BLOCKED']:
                         # Extract detailed error information from API response
                         error_info = raw_response.get('operation', {}).get('error', {})
                         error_message = error_info.get('message', '')
-                        
+
                         # Categorize the error for better user understanding
                         if 'quota' in error_message.lower() or 'limit' in error_message.lower():
                             error_reason = "Vượt quota API"
@@ -1323,7 +1400,7 @@ class _Worker(QObject):
                             error_reason = error_message[:80]
                         else:
                             error_reason = "Tạo video thất bại"
-                        
+
                         card["status"] = "FAILED"
                         card["error_reason"] = error_reason
                         self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {error_reason}")
@@ -1347,7 +1424,7 @@ class _Worker(QObject):
                 else:
                     self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
                 time.sleep(5)
-        
+
         # If we exit the loop with remaining jobs, they timed out
         if jobs:
             self.log.emit(f"[WARN] Polling timeout reached, {len(jobs)} videos still processing")
@@ -1357,7 +1434,7 @@ class _Worker(QObject):
                     card["status"] = "TIMEOUT"
                     card["error_reason"] = "Polling timeout (quá thời gian chờ)"
                     self.job_card.emit(card)
-        
+
         # 4K upscale if requested
         if up4k and shutil.which("ffmpeg"):
             self.log.emit("[INFO] Starting 4K upscale...")
