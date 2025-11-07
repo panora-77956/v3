@@ -15,20 +15,20 @@ COLORS = {
     "on_primary": "#FFFFFF",
     "primary_container": "#D1E4FF",
     "on_primary_container": "#001D36",
-    
+
     "secondary": "#4CAF50",        # Green
     "on_secondary": "#FFFFFF",
-    
+
     "error": "#F44336",            # Red
     "on_error": "#FFFFFF",
-    
+
     "background": "#FDFBFF",
     "on_background": "#1A1C1E",
-    
+
     "surface": "#FFFFFF",
     "on_surface": "#1A1C1E",
     "surface_variant": "#E1E2EC",
-    
+
     "outline": "#73777F",
     "shadow": "#000000",
 }
@@ -42,7 +42,7 @@ def load_roboto_fonts():
         "Roboto-Medium.ttf",
         "Roboto-Bold.ttf"
     ]
-    
+
     for font_file in fonts:
         font_path = os.path.join(fonts_dir, font_file)
         if os.path.exists(font_path):
@@ -68,9 +68,9 @@ def add_elevation(widget, level=2):
     if level == 0:
         widget.setGraphicsEffect(None)
         return
-    
+
     shadow = QGraphicsDropShadowEffect()
-    
+
     # Material Design shadow specs
     blur_radius = {
         1: 3,
@@ -80,7 +80,7 @@ def add_elevation(widget, level=2):
         6: 16,
         8: 24,
     }.get(level, 6)
-    
+
     offset_y = {
         1: 1,
         2: 2,
@@ -89,7 +89,7 @@ def add_elevation(widget, level=2):
         6: 6,
         8: 8,
     }.get(level, 2)
-    
+
     shadow.setBlurRadius(blur_radius)
     shadow.setColor(QColor(0, 0, 0, 40))  # 16% opacity
     shadow.setOffset(0, offset_y)
@@ -260,9 +260,9 @@ def apply_material_theme(app):
     """Apply full Material Design theme with Roboto fonts"""
     load_roboto_fonts()
     app.setStyleSheet(MATERIAL_STYLESHEET)
-    
+
     # Set default font to Roboto
     roboto_font = QFont("Roboto", 14)
     app.setFont(roboto_font)
-    
+
     print("✅ Material Design theme applied with Roboto fonts")

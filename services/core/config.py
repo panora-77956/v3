@@ -22,10 +22,10 @@ def load(force_reload: bool = False) -> Dict[str, Any]:
         Configuration dictionary
     """
     global _CACHE
-    
+
     if _CACHE is not None and not force_reload:
         return _CACHE
-    
+
     if CFG_PATH.exists():
         try:
             with open(CFG_PATH, "r", encoding="utf-8") as f:
@@ -34,7 +34,7 @@ def load(force_reload: bool = False) -> Dict[str, Any]:
         except Exception:
             # If file is corrupted, return default config
             pass
-    
+
     # Default configuration
     _CACHE = {
         "google_api_keys": [],
@@ -55,16 +55,16 @@ def save(cfg: Dict[str, Any]) -> bool:
         True if successful, False otherwise
     """
     global _CACHE
-    
+
     try:
         # Atomic write using temporary file
         temp_path = CFG_PATH.with_suffix('.tmp')
         with open(temp_path, "w", encoding="utf-8") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
-        
+
         # Rename is atomic on most filesystems
         temp_path.replace(CFG_PATH)
-        
+
         # Update cache
         _CACHE = cfg
         return True

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 import requests, time, random
 from typing import List, Optional
-from services.core.config import load as load_config
 from services.core.key_manager import get_all_keys, refresh
 from services.core.api_config import GEMINI_TEXT_MODEL, gemini_text_endpoint
 

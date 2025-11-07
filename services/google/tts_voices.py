@@ -2,7 +2,6 @@
 """Google Cloud Text-to-Speech Voices Fetcher"""
 
 import requests
-import json
 from typing import List, Dict
 
 # Hardcoded fallback voices (if API fails)
@@ -43,17 +42,17 @@ def get_available_voices(language_code: str = "vi", api_key: str = None) -> List
     # Check cache
     if language_code in _VOICES_CACHE:
         return _VOICES_CACHE[language_code]
-    
+
     # Try API if key provided
     if api_key:
         try:
             url = f"https://texttospeech.googleapis.com/v1/voices?key={api_key}"
             response = requests.get(url, timeout=5)
             response.raise_for_status()
-            
+
             data = response.json()
             all_voices = data.get("voices", [])
-            
+
             # Filter by language
             filtered = [
                 {
@@ -63,13 +62,13 @@ def get_available_voices(language_code: str = "vi", api_key: str = None) -> List
                 for v in all_voices
                 if v["languageCodes"][0].startswith(language_code)
             ]
-            
+
             if filtered:
                 _VOICES_CACHE[language_code] = filtered
                 return filtered
         except Exception as e:
             print(f"[WARN] Failed to fetch voices from API: {e}")
-    
+
     # Fallback to hardcoded
     fallback = FALLBACK_VOICES.get(language_code, FALLBACK_VOICES.get("en", []))
     _VOICES_CACHE[language_code] = fallback

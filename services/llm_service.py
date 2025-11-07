@@ -2,8 +2,8 @@
 """
 LLM Service - Wrapper for Gemini text generation API
 """
-from typing import Dict, Any, Optional
-from services.gemini_client import GeminiClient, MissingAPIKey
+from typing import Dict, Any
+from services.gemini_client import GeminiClient
 
 
 def generate_text(system_prompt: str, user_prompt: str, temperature: float = 0.8, 

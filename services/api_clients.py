@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Any, Tuple
 from services.http_retry import request_json
 from services.core.key_manager import get_all_keys
 from services.resilience import acquire
