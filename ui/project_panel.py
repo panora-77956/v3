@@ -570,17 +570,17 @@ class ProjectPanel(QWidget):
             model=self.cb_model.currentText(); aspect=self.cb_aspect.currentText(); copies=int(self.sp_copies.value()); pid=cfg.get("default_project_id") or DEFAULT_PROJECT_ID
             if self._seq_running: self.console.warn("Đang chạy tuần tự, vui lòng chờ…"); return
             self._seq_running=True
-            
+
             # Get account manager to check for multi-account support
             from services.account_manager import get_account_manager
             account_mgr = get_account_manager()
-            
+
             # PR#4: Enable stop button when running
             self.btn_run.setEnabled(False); self.btn_run.setText("ĐANG TẠO…")
             self.btn_stop.setEnabled(True)
             QApplication.setOverrideCursor(Qt.WaitCursor)
             self.pb.setValue(0); self.pb_text.setText(f"Bắt đầu: {n} cảnh, {copies} video/cảnh")
-            
+
             # Use parallel worker if multi-account is enabled
             if account_mgr.is_multi_account_enabled():
                 from ui.workers.parallel_worker import ParallelSeqWorker
@@ -596,7 +596,7 @@ class ProjectPanel(QWidget):
                 self._t=QThread(self)
                 self._w=SeqWorker(self.client,self.jobs,model,aspect,copies,pid)
                 self._w.moveToThread(self._t)
-            
+
             self._t.started.connect(self._w.run)
             self._w.progress.connect(self._on_prog); self._w.row_update.connect(self._refresh_row)
             self._w.log.connect(lambda lv,msg: getattr(self.console, lv.lower())(msg) if hasattr(self.console, lv.lower()) else self.console.info(msg))

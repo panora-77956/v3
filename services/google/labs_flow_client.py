@@ -1,4 +1,4 @@
-import base64, mimetypes, json, time, requests, os, re
+import base64, mimetypes, json, time, requests, re
 from typing import List, Dict, Optional, Tuple, Callable, Any
 
 
@@ -96,12 +96,21 @@ def _trim_prompt_text(prompt_text: Any)->str:
         return str(obj)[:1800]
 
 class LabsFlowClient:
+    """
+    Google Labs Flow Client with multi-token rotation support
+    
+    Features:
+    - Automatic token rotation across multiple API keys for load balancing
+    - Robust error handling with retries
+    - Supports both I2V (image-to-video) and T2V (text-to-video) generation
+    """
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
         if not self.tokens: raise ValueError("No Labs tokens provided")
         self._idx=0; self.timeout=timeout; self.on_event=on_event
 
     def _tok(self)->str:
+        """Get next token using round-robin rotation for load balancing"""
         t=self.tokens[self._idx % len(self.tokens)]; self._idx+=1; return t
 
     def _emit(self, kind: str, **kw):
@@ -281,10 +290,10 @@ class LabsFlowClient:
         """
         if num_videos > 4:
             num_videos = 4
-        
+
         # Trim prompt if too long
         prompt_text = _trim_prompt_text(prompt)
-        
+
         # Build batch request with multiple copies
         requests_list = []
         for i in range(num_videos):
@@ -296,14 +305,14 @@ class LabsFlowClient:
                 "textInput": {"prompt": prompt_text}
             }
             requests_list.append(item)
-        
+
         payload = {"requests": requests_list}
         if project_id:
             payload["clientContext"] = {"projectId": project_id}
-        
+
         # Call T2V endpoint
         data = self._post(T2V_URL, payload) or {}
-        
+
         # Extract operation names
         operations = data.get("operations", [])
         operation_names = []
@@ -311,7 +320,7 @@ class LabsFlowClient:
             name = (op.get("operation") or {}).get("name") or op.get("name") or ""
             if name:
                 operation_names.append(name)
-        
+
         return operation_names
 
 # Backward compatibility

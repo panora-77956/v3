@@ -6,7 +6,7 @@ Provides utilities to validate and sanitize user inputs for security and stabili
 
 import re
 import os
-from typing import Optional, Union, Any
+from typing import Union, Any
 from pathlib import Path
 
 
@@ -17,7 +17,7 @@ class ValidationError(Exception):
 
 class InputValidator:
     """Validates various types of user inputs"""
-    
+
     # Common patterns
     SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_. -]+$')
     EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
@@ -29,7 +29,7 @@ class InputValidator:
         r'(?::\d+)?'  # optional port
         r'(?:/?|[/?]\S+)$', re.IGNORECASE
     )
-    
+
     @staticmethod
     def validate_string(
         value: Any,
@@ -56,18 +56,18 @@ class InputValidator:
         """
         if not isinstance(value, str):
             raise ValidationError(f"{field_name} must be a string, got {type(value).__name__}")
-        
+
         if not allow_empty and len(value.strip()) == 0:
             raise ValidationError(f"{field_name} cannot be empty")
-        
+
         if len(value) < min_length:
             raise ValidationError(f"{field_name} must be at least {min_length} characters")
-        
+
         if max_length is not None and len(value) > max_length:
             raise ValidationError(f"{field_name} must not exceed {max_length} characters")
-        
+
         return value
-    
+
     @staticmethod
     def validate_integer(
         value: Any,
@@ -94,15 +94,15 @@ class InputValidator:
             int_value = int(value)
         except (ValueError, TypeError) as e:
             raise ValidationError(f"{field_name} must be an integer: {e}")
-        
+
         if min_value is not None and int_value < min_value:
             raise ValidationError(f"{field_name} must be at least {min_value}")
-        
+
         if max_value is not None and int_value > max_value:
             raise ValidationError(f"{field_name} must not exceed {max_value}")
-        
+
         return int_value
-    
+
     @staticmethod
     def validate_float(
         value: Any,
@@ -129,15 +129,15 @@ class InputValidator:
             float_value = float(value)
         except (ValueError, TypeError) as e:
             raise ValidationError(f"{field_name} must be a number: {e}")
-        
+
         if min_value is not None and float_value < min_value:
             raise ValidationError(f"{field_name} must be at least {min_value}")
-        
+
         if max_value is not None and float_value > max_value:
             raise ValidationError(f"{field_name} must not exceed {max_value}")
-        
+
         return float_value
-    
+
     @staticmethod
     def validate_path(
         value: str,
@@ -166,9 +166,9 @@ class InputValidator:
         """
         if not isinstance(value, (str, Path)):
             raise ValidationError(f"{field_name} must be a string or Path object")
-        
+
         path = Path(value)
-        
+
         if must_exist and not path.exists():
             if create_if_missing and not must_be_file:
                 try:
@@ -177,15 +177,15 @@ class InputValidator:
                     raise ValidationError(f"Could not create {field_name}: {e}")
             else:
                 raise ValidationError(f"{field_name} does not exist: {value}")
-        
+
         if must_be_file and path.exists() and not path.is_file():
             raise ValidationError(f"{field_name} must be a file: {value}")
-        
+
         if must_be_dir and path.exists() and not path.is_dir():
             raise ValidationError(f"{field_name} must be a directory: {value}")
-        
+
         return str(path)
-    
+
     @staticmethod
     def validate_url(value: str, field_name: str = "URL") -> str:
         """
@@ -203,12 +203,12 @@ class InputValidator:
         """
         if not isinstance(value, str):
             raise ValidationError(f"{field_name} must be a string")
-        
+
         if not InputValidator.URL_PATTERN.match(value):
             raise ValidationError(f"{field_name} is not a valid URL: {value}")
-        
+
         return value
-    
+
     @staticmethod
     def validate_choice(
         value: Any,
@@ -233,16 +233,16 @@ class InputValidator:
             raise ValidationError(
                 f"{field_name} must be one of {choices}, got '{value}'"
             )
-        
+
         return value
 
 
 class InputSanitizer:
     """Sanitizes user inputs to prevent security issues"""
-    
+
     # Characters to remove for safe filenames
     UNSAFE_FILENAME_CHARS = r'[<>:"/\\|?*\x00-\x1f]'
-    
+
     @staticmethod
     def sanitize_filename(
         filename: str,
@@ -262,23 +262,23 @@ class InputSanitizer:
         """
         # Remove or replace unsafe characters
         sanitized = re.sub(InputSanitizer.UNSAFE_FILENAME_CHARS, replacement, filename)
-        
+
         # Remove leading/trailing spaces and dots
         sanitized = sanitized.strip('. ')
-        
+
         # Limit length
         if len(sanitized) > max_length:
             # Keep extension if present
             name, ext = os.path.splitext(sanitized)
             max_name_length = max_length - len(ext)
             sanitized = name[:max_name_length] + ext
-        
+
         # Ensure not empty
         if not sanitized:
             sanitized = 'unnamed'
-        
+
         return sanitized
-    
+
     @staticmethod
     def sanitize_path(path: str, allow_absolute: bool = False) -> str:
         """
@@ -297,22 +297,22 @@ class InputSanitizer:
         # Normalize and resolve path (resolves symlinks and relative paths)
         normalized = os.path.normpath(path)
         resolved = os.path.realpath(normalized)
-        
+
         # Check for directory traversal using both normalized and resolved paths
         if '..' in normalized.split(os.sep):
             raise ValidationError("Path contains directory traversal (..) which is not allowed")
-        
+
         # Additional check: ensure resolved path doesn't escape through symlinks
         # This prevents symlink-based traversal attacks
         if '..' in resolved.split(os.sep):
             raise ValidationError("Path resolves to directory traversal which is not allowed")
-        
+
         # Check if absolute when not allowed
         if not allow_absolute and os.path.isabs(resolved):
             raise ValidationError("Absolute paths are not allowed")
-        
+
         return normalized
-    
+
     @staticmethod
     def sanitize_html(text: str) -> str:
         """
@@ -326,7 +326,7 @@ class InputSanitizer:
         """
         if not isinstance(text, str):
             return text
-        
+
         # Escape HTML special characters
         html_escape_table = {
             "&": "&amp;",
@@ -335,9 +335,9 @@ class InputSanitizer:
             ">": "&gt;",
             "<": "&lt;",
         }
-        
+
         return "".join(html_escape_table.get(c, c) for c in text)
-    
+
     @staticmethod
     def sanitize_sql(text: str) -> str:
         """
@@ -354,10 +354,10 @@ class InputSanitizer:
         """
         if not isinstance(text, str):
             return text
-        
+
         # Escape single quotes
         return text.replace("'", "''")
-    
+
     @staticmethod
     def truncate_string(text: str, max_length: int, suffix: str = '...') -> str:
         """
@@ -373,7 +373,7 @@ class InputSanitizer:
         """
         if len(text) <= max_length:
             return text
-        
+
         return text[:max_length - len(suffix)] + suffix
 
 
@@ -382,7 +382,7 @@ def validate_and_sanitize_filename(filename: str) -> str:
     """Validate and sanitize filename in one step"""
     # Sanitize first
     sanitized = InputSanitizer.sanitize_filename(filename)
-    
+
     # Then validate
     InputValidator.validate_string(
         sanitized,
@@ -391,7 +391,7 @@ def validate_and_sanitize_filename(filename: str) -> str:
         allow_empty=False,
         field_name="Filename"
     )
-    
+
     return sanitized
 
 
@@ -432,7 +432,7 @@ if __name__ == '__main__':
     unsafe_filename = "my<file>name?.txt"
     safe_filename = InputSanitizer.sanitize_filename(unsafe_filename)
     print(f"✓ Sanitized filename: '{unsafe_filename}' -> '{safe_filename}'")
-    
+
     # Test path validation
     try:
         InputValidator.validate_path(
@@ -443,19 +443,19 @@ if __name__ == '__main__':
         print("✓ Path validation passed")
     except ValidationError as e:
         print(f"✗ Path validation failed: {e}")
-    
+
     # Test integer validation
     try:
         value = InputValidator.validate_integer("42", min_value=1, max_value=100)
         print(f"✓ Integer validation: {value}")
     except ValidationError as e:
         print(f"✗ Integer validation failed: {e}")
-    
+
     # Test URL validation
     try:
         url = InputValidator.validate_url("https://example.com/path")
         print(f"✓ URL validation: {url}")
     except ValidationError as e:
         print(f"✗ URL validation failed: {e}")
-    
+
     print("\n✅ All validation tests completed!")

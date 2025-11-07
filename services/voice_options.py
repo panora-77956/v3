@@ -136,7 +136,7 @@ def get_voice_info(provider: str, voice_id: str):
         voices = []
         for lang_voices in VOICE_OPTIONS.get(provider, {}).values():
             voices.extend(lang_voices)
-    
+
     for voice in voices:
         if voice["id"] == voice_id:
             return voice
@@ -167,24 +167,24 @@ def get_voice_config(provider: str, voice_id: str, language_code: str = "vi") ->
         Dictionary with voice configuration including provider, voice_id, language, and metadata
     """
     voice_info = get_voice_info(provider, voice_id)
-    
+
     config = {
         "provider": provider,
         "voice_id": voice_id,
         "language_code": language_code
     }
-    
+
     # Add voice metadata if available
     if voice_info:
         config["voice_name"] = voice_info.get("name", voice_id)
         config["gender"] = voice_info.get("gender", "neutral")
         config["description"] = voice_info.get("description", "")
-    
+
     # Add provider-specific settings
     provider_config = TTS_PROVIDER_CONFIGS.get(provider, {})
     config["supports_ssml"] = provider_config.get("supports_ssml", False)
     config["supports_prosody"] = provider_config.get("supports_prosody", False)
-    
+
     return config
 
 
@@ -306,13 +306,13 @@ def _calculate_rate(preset_rate: str, multiplier: float = 1.0) -> str:
         "medium": 100,
         "fast": 125
     }
-    
+
     base_rate = rate_map.get(preset_rate, 100)
     final_rate = int(base_rate * multiplier)
-    
+
     # Clamp to reasonable range (50% - 200%)
     final_rate = max(50, min(200, final_rate))
-    
+
     return f"{final_rate}%"
 
 
@@ -333,13 +333,13 @@ def _calculate_pitch(preset_pitch: str, adjust_semitones: int = 0) -> str:
         match = re.match(r'([+-]?\d+)st', preset_pitch)
         if match:
             preset_value = int(match.group(1))
-    
+
     # Add user adjustment
     final_pitch = preset_value + adjust_semitones
-    
+
     # Clamp to reasonable range (-5 to +5 semitones)
     final_pitch = max(-5, min(5, final_pitch))
-    
+
     # Format as SSML string
     if final_pitch > 0:
         return f"+{final_pitch}st"
@@ -368,15 +368,15 @@ def get_google_tts_ssml(text: str, voice_id: str, style_preset: str = "storytell
     # Get preset configuration
     style_config = SPEAKING_STYLES.get(style_preset, SPEAKING_STYLES["storytelling"])
     google_config = style_config["google_tts"]
-    
+
     # Calculate final prosody values
     final_rate = _calculate_rate(google_config["rate"], rate_multiplier)
     final_pitch = _calculate_pitch(google_config["pitch"], pitch_adjust)
     final_volume = volume or google_config["volume"]
-    
+
     # Escape XML special characters in text
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-    
+
     # Generate SSML
     ssml = f"""<speak>
   <voice name="{voice_id}">
@@ -385,7 +385,7 @@ def get_google_tts_ssml(text: str, voice_id: str, style_preset: str = "storytell
     </prosody>
   </voice>
 </speak>"""
-    
+
     return ssml
 
 
@@ -405,11 +405,11 @@ def get_elevenlabs_settings(style_preset: str = "storytelling",
     # Get preset configuration
     style_config = SPEAKING_STYLES.get(style_preset, SPEAKING_STYLES["storytelling"])
     elevenlabs_config = style_config["elevenlabs"]
-    
+
     # Apply user adjustments and clamp to valid range [0, 1]
     final_stability = max(0.0, min(1.0, elevenlabs_config["stability"] + stability_adjust))
     final_style = max(0.0, min(1.0, elevenlabs_config["style"] + style_adjust))
-    
+
     return {
         "stability": final_stability,
         "similarity_boost": elevenlabs_config["similarity_boost"],

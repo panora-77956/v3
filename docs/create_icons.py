@@ -34,15 +34,15 @@ def create_error_icon(filename, color, symbol, output_dir='resources/icons'):
     """
     # Create output directory if it doesn't exist
     os.makedirs(output_dir, exist_ok=True)
-    
+
     size = 128
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
-    
+
     # Draw circle background
     padding = 10
     draw.ellipse([padding, padding, size-padding, size-padding], fill=color)
-    
+
     # Draw symbol
     if symbol == '!':
         # Exclamation mark
@@ -61,7 +61,7 @@ def create_error_icon(filename, color, symbol, output_dir='resources/icons'):
         points = [(35, 65), (55, 85), (90, 40)]
         draw.line([points[0], points[1]], fill='white', width=12)
         draw.line([points[1], points[2]], fill='white', width=12)
-    
+
     output_path = os.path.join(output_dir, filename)
     img.save(output_path)
     print(f'✓ Created {output_path}')
@@ -72,18 +72,18 @@ def main():
     print("=" * 60)
     print("Creating Error Icons")
     print("=" * 60)
-    
+
     icons = [
         ('error.png', (229, 57, 53), 'X', 'Error icon (Red)'),
         ('warning.png', (255, 152, 0), '!', 'Warning icon (Orange)'),
         ('success.png', (76, 175, 80), '✓', 'Success icon (Green)'),
         ('info.png', (33, 150, 243), '!', 'Info icon (Blue)'),
     ]
-    
+
     for filename, color, symbol, description in icons:
         print(f"\nCreating {description}...")
         create_error_icon(filename, color, symbol)
-    
+
     print("\n" + "=" * 60)
     print("✅ All icons created successfully!")
     print("=" * 60)
