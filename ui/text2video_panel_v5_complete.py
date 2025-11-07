@@ -1355,7 +1355,8 @@ class Text2VideoPanelV5(QWidget):
         """Get number of video copies"""
         try:
             return int(self.sp_copies.value())
-        except:
+        except (ValueError, AttributeError) as e:
+            print(f"[Warning] Could not get copies value: {e}")
             return 1
     
     def _open_project_dir(self):
@@ -2016,7 +2017,8 @@ class Text2VideoPanelV5(QWidget):
             role = item.data(Qt.UserRole)
             if isinstance(role, tuple) and role[0] == 'scene':
                 self._show_prompt_detail(int(role[1]))
-        except:
+        except (AttributeError, ValueError, IndexError) as e:
+            print(f"[Warning] Could not show prompt detail: {e}")
             pass
     
     def _show_prompt_detail(self, scene_num):

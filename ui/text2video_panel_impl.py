@@ -254,7 +254,8 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         # Get ElevenLabs settings (using voice adjustments if available from voice_settings)
         # Note: ElevenLabs adjustments would come from separate UI controls, defaulting to 0.0 for now
         elevenlabs_settings = get_elevenlabs_settings(speaking_style, 0.0, 0.0)
-    except:
+    except (ImportError, KeyError, AttributeError) as e:
+        print(f"[Warning] Could not load voice settings: {e}")
         style_description = ""
         elevenlabs_settings = {
             "stability": 0.5,

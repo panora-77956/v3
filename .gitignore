@@ -61,6 +61,12 @@ repo_tree.txt
 # Logs
 *.log
 nhat_ky_xu_ly.log
+logs/
+
+# Cache directories
+cache/
+.cache/
+.pytest_cache/
 
 # IDE
 .vscode/
@@ -74,3 +80,6 @@ Thumbs.db
 
 # Project specific
 VeoProjects/
+temp/
+*.tmp
+outputs/
