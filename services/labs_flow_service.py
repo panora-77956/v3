@@ -230,6 +230,7 @@ def _trim_prompt_text(prompt_text: Any)->str:
 
 class LabsClient:
     MAX_RETRY_ATTEMPTS = 9  # Maximum total retry attempts across all tokens
+    RETRY_SLEEP_MULTIPLIER = 0.7  # Multiplier for exponential backoff sleep time
     
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
@@ -302,9 +303,9 @@ class LabsClient:
                     # Don't sleep, try next token immediately
                     last=e
                     continue
-                last=e; time.sleep(0.7*(attempts_made))
+                last=e; time.sleep(self.RETRY_SLEEP_MULTIPLIER*(attempts_made))
             except Exception as e:
-                last=e; time.sleep(0.7*(attempts_made))
+                last=e; time.sleep(self.RETRY_SLEEP_MULTIPLIER*(attempts_made))
         
         if last is None:
             last = Exception("All tokens are invalid or max attempts reached")
