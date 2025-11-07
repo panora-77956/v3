@@ -1105,6 +1105,9 @@ class Text2VideoPanelV5(QWidget):
                     topic = self.cb_topic.currentData() or None
                     quality = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
                     
+                    # Part G: Extract dialogues from scene data for voiceover
+                    dialogues = sc.get("dialogues", [])
+                    
                     j = build_prompt_json(
                         i, sc.get("prompt_vi", ""), sc.get("prompt_tgt", ""),
                         lang_code, self.cb_ratio.currentText(),
@@ -1117,7 +1120,8 @@ class Text2VideoPanelV5(QWidget):
                         voice_name=voice_name,
                         domain=domain,
                         topic=topic,
-                        quality=quality
+                        quality=quality,
+                        dialogues=dialogues
                     )
                     
                     with open(
@@ -1179,10 +1183,14 @@ class Text2VideoPanelV5(QWidget):
             tgt = self.table.item(r, 2).text() if self.table.item(r, 2) else vi
             
             location_ctx = None
+            dialogues = []
             if self._script_data and "scenes" in self._script_data:
                 scene_list = self._script_data["scenes"]
-                if r < len(scene_list) and extract_location_context:
-                    location_ctx = extract_location_context(scene_list[r])
+                if r < len(scene_list):
+                    if extract_location_context:
+                        location_ctx = extract_location_context(scene_list[r])
+                    # Part G: Extract dialogues for voiceover
+                    dialogues = scene_list[r].get("dialogues", [])
             
             if build_prompt_json:
                 # Get additional parameters for enhanced prompt JSON
@@ -1204,7 +1212,8 @@ class Text2VideoPanelV5(QWidget):
                     voice_name=voice_name,
                     domain=domain,
                     topic=topic,
-                    quality=quality_text
+                    quality=quality_text,
+                    dialogues=dialogues
                 )
                 scenes.append({
                     "prompt": json.dumps(j, ensure_ascii=False, indent=2),
@@ -1380,10 +1389,14 @@ class Text2VideoPanelV5(QWidget):
         voice_settings = self.get_voice_settings()
         
         location_ctx = None
+        dialogues = []
         if self._script_data and "scenes" in self._script_data:
             scene_list = self._script_data["scenes"]
-            if row < len(scene_list) and extract_location_context:
-                location_ctx = extract_location_context(scene_list[row])
+            if row < len(scene_list):
+                if extract_location_context:
+                    location_ctx = extract_location_context(scene_list[row])
+                # Part G: Extract dialogues for voiceover
+                dialogues = scene_list[row].get("dialogues", [])
         
         if build_prompt_json:
             # Get additional parameters for enhanced prompt JSON
@@ -1405,7 +1418,8 @@ class Text2VideoPanelV5(QWidget):
                 voice_name=voice_name,
                 domain=domain,
                 topic=topic,
-                quality=quality
+                quality=quality,
+                dialogues=dialogues
             )
             
             try:
@@ -2032,10 +2046,14 @@ class Text2VideoPanelV5(QWidget):
         voice_settings = self.get_voice_settings()
         
         location_ctx = None
+        dialogues = []
         if self._script_data and "scenes" in self._script_data:
             scene_list = self._script_data["scenes"]
-            if row < len(scene_list) and extract_location_context:
-                location_ctx = extract_location_context(scene_list[row])
+            if row < len(scene_list):
+                if extract_location_context:
+                    location_ctx = extract_location_context(scene_list[row])
+                # Part G: Extract dialogues for voiceover
+                dialogues = scene_list[row].get("dialogues", [])
         
         if build_prompt_json:
             # Get additional parameters for enhanced prompt JSON
@@ -2057,7 +2075,8 @@ class Text2VideoPanelV5(QWidget):
                 voice_name=voice_name,
                 domain=domain,
                 topic=topic,
-                quality=quality
+                quality=quality,
+                dialogues=dialogues
             )
             
             try:
@@ -2115,10 +2134,14 @@ class Text2VideoPanelV5(QWidget):
         voice_settings = self.get_voice_settings()
         
         location_ctx = None
+        dialogues = []
         if self._script_data and "scenes" in self._script_data:
             scene_list = self._script_data["scenes"]
-            if row < len(scene_list) and extract_location_context:
-                location_ctx = extract_location_context(scene_list[row])
+            if row < len(scene_list):
+                if extract_location_context:
+                    location_ctx = extract_location_context(scene_list[row])
+                # Part G: Extract dialogues for voiceover
+                dialogues = scene_list[row].get("dialogues", [])
         
         # Build prompt JSON for retry
         if build_prompt_json:
@@ -2140,7 +2163,8 @@ class Text2VideoPanelV5(QWidget):
                 voice_name=voice_name,
                 domain=domain,
                 topic=topic,
-                quality=quality_text
+                quality=quality_text,
+                dialogues=dialogues
             )
             
             scenes = [{
