@@ -719,7 +719,7 @@ class _Worker(QObject):
 
             # Batch check with error handling
             try:
-                rs = client.batch_check_operations(names, metadata or None)
+                rs = client.batch_check_operations(names, metadata)
             except Exception as e:
                 self.log.emit(f"[WARN] Lỗi kiểm tra trạng thái (vòng {poll_round + 1}): {e}")
                 import time
@@ -1211,7 +1211,7 @@ class _Worker(QObject):
 
                 # Batch check
                 try:
-                    rs = client.batch_check_operations(names, metadata or None)
+                    rs = client.batch_check_operations(names, metadata)
                 except Exception as e:
                     self.log.emit(f"[WARN] Poll error (round {poll_round + 1}): {e}")
                     time.sleep(10)

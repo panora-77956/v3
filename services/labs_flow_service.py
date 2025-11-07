@@ -418,7 +418,11 @@ class LabsClient:
                 last_err=e3
 
         # 3) Per-copy fallback (still invalid)
-        job.setdefault("operation_names",[]); job.setdefault("video_by_idx", [None]*copies); job.setdefault("thumb_by_idx", [None]*copies); job.setdefault("op_index_map", {}); job.setdefault("operation_metadata", {})
+        job.setdefault("operation_names",[])
+        job.setdefault("video_by_idx", [None]*copies)
+        job.setdefault("thumb_by_idx", [None]*copies)
+        job.setdefault("op_index_map", {})
+        job.setdefault("operation_metadata", {})
         if data is None and last_err is not None:
             for k in range(copies):
                 for mkey in models:
