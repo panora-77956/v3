@@ -22,6 +22,28 @@ python examples/generate_scene_audio.py
 **Requirements:**
 - Google API key configured in `config.json`
 
+### error_image_demo.py
+
+Demonstrates how to use error images and icon widgets in the UI.
+
+**Usage:**
+```bash
+python examples/error_image_demo.py
+```
+
+**Features demonstrated:**
+- Direct icon pixmap usage with QLabel
+- ErrorDisplayWidget (standard vertical layout)
+- ErrorDisplayWidget (compact horizontal layout)
+- StatusLabel with inline icons
+- Automatic fallback to emoji when images unavailable
+
+**Requirements:**
+- PyQt5
+- Icon files in resources/icons/ (created automatically)
+
+**Note:** See `docs/ERROR_IMAGE_GUIDE.md` for comprehensive documentation on error image usage.
+
 ## Setup
 
 Before running examples, ensure you have:
@@ -43,6 +65,7 @@ Before running examples, ensure you have:
 - See `docs/TTS_SERVICE.md` for detailed TTS service documentation
 - See `docs/CONFIGURATION.md` for API key configuration
 - See `docs/NEW_FEATURES.md` for feature overviews
+- See `docs/ERROR_IMAGE_GUIDE.md` for error image usage guide
 
 ## Contributing
 
@@ -51,3 +74,4 @@ Feel free to add more examples that demonstrate:
 - Video generation workflows
 - Image generation
 - Multi-scene projects
+- UI widgets and components

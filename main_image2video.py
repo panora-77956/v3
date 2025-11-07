@@ -147,9 +147,24 @@ class PlaceholderPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
         
-        icon_label = QLabel("⚠️")
-        icon_label.setFont(QFont("Segoe UI", 48))
+        # Enhanced: Try to load warning icon image, fallback to emoji
+        icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignCenter)
+        
+        try:
+            from utils.icon_utils import get_warning_icon, EMOJI_FALLBACKS, IconType
+            warning_pixmap = get_warning_icon(size=(96, 96))
+            if warning_pixmap:
+                icon_label.setPixmap(warning_pixmap)
+            else:
+                # Fallback to emoji
+                icon_label.setText(EMOJI_FALLBACKS[IconType.WARNING])
+                icon_label.setFont(QFont("Segoe UI", 48))
+        except (ImportError, ModuleNotFoundError, AttributeError):
+            # Fallback to emoji if icon utils fails
+            icon_label.setText("⚠️")
+            icon_label.setFont(QFont("Segoe UI", 48))
+        
         layout.addWidget(icon_label)
         
         title_label = QLabel(f"{panel_name} Not Available")

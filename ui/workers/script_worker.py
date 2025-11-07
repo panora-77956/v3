@@ -28,7 +28,7 @@ class ScriptWorker(QThread):
 
             from services.sales_script_service import build_outline
 
-            result = build_outline(self.cfg)
+            result = build_outline(self.config)
 
             self.progress.emit("Hoàn thành!")
             self.done.emit(result)

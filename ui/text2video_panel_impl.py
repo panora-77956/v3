@@ -458,8 +458,9 @@ class _Worker(QObject):
         except Exception as e:
             self.log.emit(f"[ERR] {e}")
         finally:
-            if self.task == "video":
-                self.job_finished.emit()
+            # BUG FIX: Emit finished signal for both script and video tasks
+            # This ensures UI buttons are re-enabled and thread is cleaned up
+            self.job_finished.emit()
 
     def _run_script(self):
         p = self.payload
