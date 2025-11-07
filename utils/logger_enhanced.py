@@ -14,7 +14,7 @@ from pathlib import Path
 
 class ColoredFormatter(logging.Formatter):
     """Custom formatter with colors for console output"""
-    
+
     # ANSI color codes
     COLORS = {
         'DEBUG': '\033[36m',      # Cyan
@@ -24,19 +24,19 @@ class ColoredFormatter(logging.Formatter):
         'CRITICAL': '\033[35m',   # Magenta
         'RESET': '\033[0m'        # Reset
     }
-    
+
     def format(self, record):
         # Add color to level name
         levelname = record.levelname
         if levelname in self.COLORS:
             record.levelname = f"{self.COLORS[levelname]}{levelname}{self.COLORS['RESET']}"
-        
+
         # Format the message
         result = super().format(record)
-        
+
         # Reset levelname for next use
         record.levelname = levelname
-        
+
         return result
 
 
@@ -66,42 +66,42 @@ def setup_logger(
     """
     logger = logging.getLogger(name)
     logger.setLevel(level)
-    
+
     # Clear existing handlers to avoid duplicates
     logger.handlers.clear()
-    
+
     # Create formatters
     console_format = ColoredFormatter(
         '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
         datefmt='%H:%M:%S'
     )
-    
+
     file_format = logging.Formatter(
         '%(asctime)s [%(levelname)s] %(name)s - %(filename)s:%(lineno)d - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
-    
+
     # Console handler
     if console_output:
         console_handler = logging.StreamHandler(sys.stdout)
         console_handler.setLevel(level)
         console_handler.setFormatter(console_format)
         logger.addHandler(console_handler)
-    
+
     # File handler with rotation
     if file_output:
         if log_dir is None:
             log_dir = os.path.join(os.path.dirname(__file__), '..', 'logs')
-        
+
         # Create log directory if it doesn't exist
         Path(log_dir).mkdir(parents=True, exist_ok=True)
-        
+
         # Create log file with date
         log_file = os.path.join(
             log_dir,
             f'videoultra_{datetime.now().strftime("%Y%m%d")}.log'
         )
-        
+
         file_handler = RotatingFileHandler(
             log_file,
             maxBytes=max_bytes,
@@ -111,7 +111,7 @@ def setup_logger(
         file_handler.setLevel(level)
         file_handler.setFormatter(file_format)
         logger.addHandler(file_handler)
-    
+
     return logger
 
 
@@ -138,13 +138,13 @@ def get_logger(name: str = None) -> logging.Logger:
             # Clean up frame references to prevent memory leaks
             del frame
             del caller_frame
-    
+
     logger = logging.getLogger(name)
-    
+
     # If logger doesn't have handlers, set it up
     if not logger.handlers:
         return setup_logger(name)
-    
+
     return logger
 
 
@@ -153,10 +153,10 @@ class LoggerAdapter:
     Adapter for existing code using print() statements
     Provides backward compatibility while adding logging
     """
-    
+
     def __init__(self, logger: logging.Logger = None):
         self.logger = logger or get_logger()
-    
+
     def __call__(self, message: str, level: str = 'INFO'):
         """Allow LoggerAdapter to be called like print()"""
         level = level.upper()
@@ -172,22 +172,22 @@ class LoggerAdapter:
             self.logger.critical(message)
         else:
             self.logger.info(message)
-    
+
     def debug(self, message: str):
         self.logger.debug(message)
-    
+
     def info(self, message: str):
         self.logger.info(message)
-    
+
     def warning(self, message: str):
         self.logger.warning(message)
-    
+
     def error(self, message: str):
         self.logger.error(message)
-    
+
     def critical(self, message: str):
         self.logger.critical(message)
-    
+
     def exception(self, message: str):
         """Log exception with traceback"""
         self.logger.exception(message)
@@ -221,18 +221,18 @@ def get_default_logger() -> logging.Logger:
 if __name__ == '__main__':
     # Setup logging
     logger = setup_logger('test', level=logging.DEBUG)
-    
+
     # Test different log levels
     logger.debug("This is a debug message")
     logger.info("This is an info message")
     logger.warning("This is a warning message")
     logger.error("This is an error message")
     logger.critical("This is a critical message")
-    
+
     # Test exception logging
     try:
         raise ValueError("Test exception")
     except Exception as e:
         logger.exception("An error occurred")
-    
+
     print("\n✓ Logger test complete. Check logs/ directory for output.")

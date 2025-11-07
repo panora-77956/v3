@@ -40,12 +40,12 @@ class ImageWorker(QThread):
         from services.core.config import load as load_cfg
         cfg = load_cfg()
         api_keys = cfg.get('google_api_keys', [])
-        
+
         if not api_keys:
             self.error.emit(0, "Không có Google API keys trong config")
             self.all_done.emit()
             return
-        
+
         for i, scene in enumerate(self.scenes):
             try:
                 scene_idx = scene.get('index', i)
@@ -64,7 +64,7 @@ class ImageWorker(QThread):
                         aspect_ratio=aspect_ratio,
                         logger=lambda msg: self.progress.emit(scene_idx, msg)
                     )
-                    
+
                     # Handle both bytes and data URL string formats
                     img_bytes = None
                     if img_result:

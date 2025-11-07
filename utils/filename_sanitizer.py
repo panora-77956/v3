@@ -7,7 +7,6 @@ Date: 2025-01-05
 """
 
 import re
-import unicodedata
 
 
 # Vietnamese character mapping to ASCII equivalents
@@ -89,39 +88,39 @@ def sanitize_filename(filename: str, max_length: int = 200) -> str:
     """
     if not filename:
         return "untitled"
-    
+
     # Split extension if present
     parts = filename.rsplit('.', 1)
     name = parts[0]
     ext = f".{parts[1]}" if len(parts) > 1 else ""
-    
+
     # Convert Vietnamese to ASCII
     name = remove_vietnamese_accents(name)
-    
+
     # Replace colons with dashes (common in titles like "Project: Name")
     name = name.replace(':', ' -')
-    
+
     # Remove invalid path characters: < > " / \ | ? * (colon already handled above)
     name = re.sub(r'[<>"/\\|?*]', '', name)
-    
+
     # Replace spaces with underscores
     name = name.replace(' ', '_')
-    
+
     # Remove consecutive underscores
     name = re.sub(r'_+', '_', name)
-    
+
     # Remove leading/trailing underscores and dashes
     name = name.strip('_-')
-    
+
     # Ensure name is not empty
     if not name:
         name = "untitled"
-    
+
     # Truncate if too long (leave room for extension)
     max_name_length = max_length - len(ext)
     if len(name) > max_name_length:
         name = name[:max_name_length].rstrip('_-')
-    
+
     return name + ext
 
 
@@ -144,33 +143,33 @@ def sanitize_project_name(project_name: str, max_length: int = 100) -> str:
     """
     if not project_name:
         return "Project"
-    
+
     # Convert Vietnamese to ASCII
     name = remove_vietnamese_accents(project_name)
-    
+
     # Replace colons with dashes (common in project names like "Project: Name")
     name = name.replace(':', ' -')
-    
+
     # Remove invalid path characters: < > " / \ | ? * (colon already handled above)
     name = re.sub(r'[<>"/\\|?*]', '', name)
-    
+
     # Replace spaces with underscores
     name = name.replace(' ', '_')
-    
+
     # Remove consecutive underscores
     name = re.sub(r'_+', '_', name)
-    
+
     # Remove leading/trailing underscores and dashes
     name = name.strip('_-')
-    
+
     # Ensure name is not empty
     if not name:
         name = "Project"
-    
+
     # Truncate if too long
     if len(name) > max_length:
         name = name[:max_length].rstrip('_-')
-    
+
     return name
 
 
@@ -194,19 +193,19 @@ def is_safe_filename(filename: str) -> bool:
     """
     if not filename or filename in ('.', '..'):
         return False
-    
+
     # Check for invalid characters
     invalid_chars = r'[<>:"/\\|?*]'
     if re.search(invalid_chars, filename):
         return False
-    
+
     # Check for Vietnamese characters
     for char in filename:
         if char in VIETNAMESE_CHAR_MAP:
             return False
-    
+
     # Check for control characters
     if any(ord(char) < 32 for char in filename):
         return False
-    
+
     return True

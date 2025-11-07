@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-from typing import Dict, Any, List, Optional
-import datetime, json, re, logging, sys
+from typing import Dict, Any
+import datetime, json, re, logging
 from pathlib import Path
-from services.gemini_client import GeminiClient, MissingAPIKey
+from services.gemini_client import GeminiClient
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +22,13 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
     """
     if not response_text or not response_text.strip():
         raise ValueError(f"Empty response from {source}")
-    
+
     # Strategy 1: Direct JSON parse
     try:
         return json.loads(response_text)
     except json.JSONDecodeError as e:
         logger.debug(f"{source} Strategy 1 failed (direct parse): {e}")
-    
+
     # Strategy 2: Extract from markdown code blocks
     try:
         # Remove markdown code blocks (```json ... ``` or ``` ... ```)
@@ -41,42 +41,42 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
                 return json.loads(cleaned)
     except json.JSONDecodeError as e:
         logger.debug(f"{source} Strategy 2 failed (markdown extraction): {e}")
-    
+
     # Strategy 3: Fix common issues
     try:
         cleaned = response_text.strip()
-        
+
         # Remove BOM if present
         if cleaned.startswith('\ufeff'):
             cleaned = cleaned[1:]
-        
+
         # Remove invisible characters
         cleaned = cleaned.replace('\u200b', '')
-        
+
         # Remove markdown code blocks
         cleaned = re.sub(r'```(?:json)?\s*', '', cleaned)
         cleaned = re.sub(r'\s*```', '', cleaned)
-        
+
         # Replace single quotes with double quotes (simple approach)
         if "'" in cleaned and cleaned.count("'") > cleaned.count('"'):
             cleaned = cleaned.replace("'", '"')
-        
+
         # Remove trailing commas before } or ]
         cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
-        
+
         return json.loads(cleaned)
     except json.JSONDecodeError as e:
         logger.debug(f"{source} Strategy 3 failed (common fixes): {e}")
-    
+
     # Strategy 4: Find JSON by boundaries
     try:
         # Find first { and last }
         start = response_text.find('{')
         end = response_text.rfind('}')
-        
+
         if start != -1 and end != -1 and end > start:
             json_str = response_text[start:end+1]
-            
+
             # Try to parse
             try:
                 return json.loads(json_str)
@@ -86,13 +86,13 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
                 return json.loads(json_str)
     except json.JSONDecodeError as e:
         logger.debug(f"{source} Strategy 4 failed (boundary extraction): {e}")
-    
+
     # Strategy 5: Detailed error logging and re-raise
     logger.error(f"{source} All parsing strategies failed!")
     logger.error(f"Response length: {len(response_text)} characters")
     logger.error(f"First 500 chars: {response_text[:500]}")
     logger.error(f"Last 500 chars: {response_text[-500:]}")
-    
+
     # Try one last time to get a better error message
     try:
         json.loads(response_text)
@@ -103,7 +103,7 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
             e.doc,
             e.pos
         )
-    
+
     # Should not reach here
     raise ValueError(f"Unexpected parsing failure for {source}")
 
@@ -292,7 +292,7 @@ def _build_social_media_prompt(cfg: Dict[str, Any], outline_vi: str) -> str:
     language = cfg.get("speech_lang", "vi")
     product = cfg.get("product_main", "")
     idea = cfg.get("idea", "")
-    
+
     return f"""Create 3 different social media content versions for {platform}.
 
 Video Idea: {idea}
@@ -337,12 +337,12 @@ def build_outline(cfg:Dict[str,Any])->Dict[str,Any]:
     sceneCount = _scene_count(int(cfg.get("duration_sec") or 0))
     models_json = cfg.get("first_model_json") or ""
     product_count = int(cfg.get("product_count") or 0)
-    
+
     # Log language configuration for debugging
     speech_lang = cfg.get("speech_lang", "vi")
     voice_id = cfg.get("voice_id", "")
     logger.info(f"build_outline: speech_lang={speech_lang}, voice_id={voice_id}")
-    
+
     client = GeminiClient()
     sys_prompt = _build_system_prompt(cfg, sceneCount, models_json, product_count)
     raw = client.generate(sys_prompt, "Return ONLY the JSON object. No prose.", timeout=240)
@@ -376,7 +376,7 @@ def build_outline(cfg:Dict[str,Any])->Dict[str,Any]:
             "prompt_image": img_prompt
         })
         outline_vi += f"Cảnh {sc.get('scene')}: {sc.get('description', '')}\n"
-    
+
     # Generate social media content (3 versions)
     social_media = {"versions": []}
     try:
@@ -401,7 +401,7 @@ def build_outline(cfg:Dict[str,Any])->Dict[str,Any]:
                 }
             ]
         }
-    
+
     # Generate Character Bible for visual consistency
     character_bible = None
     character_bible_text = ""
@@ -413,7 +413,7 @@ def build_outline(cfg:Dict[str,Any])->Dict[str,Any]:
         content = cfg.get("product_main", "")
         video_concept = f"{idea} {content}"
         screenplay = json.dumps(script_json, ensure_ascii=False)
-        
+
         # Create character bible
         bible = create_character_bible(video_concept, screenplay, existing_bible)
         character_bible = bible
@@ -448,17 +448,17 @@ def generate_thumbnail_with_text(base_image_path: str, text: str, output_path: s
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
         raise ImportError("Pillow is required. Install with: pip install Pillow>=10.0.0")
-    
+
     # Open base image
     img = Image.open(base_image_path)
-    
+
     # Convert to RGB if needed
     if img.mode != 'RGB':
         img = img.convert('RGB')
-    
+
     # Create drawing context
     draw = ImageDraw.Draw(img)
-    
+
     # Try to load a bold font, fallback to default
     font_size = max(40, img.height // 20)
     try:
@@ -477,37 +477,37 @@ def generate_thumbnail_with_text(base_image_path: str, text: str, output_path: s
             font = ImageFont.load_default()
     except Exception:
         font = ImageFont.load_default()
-    
+
     # Text positioning - center top with semi-transparent background
     text = text.upper()
-    
+
     # Calculate text bounding box
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     text_height = bbox[3] - bbox[1]
-    
+
     # Position at top center
     x = (img.width - text_width) // 2
     y = img.height // 8
-    
+
     # Draw semi-transparent background
     padding = 20
     bg_bbox = [x - padding, y - padding, x + text_width + padding, y + text_height + padding]
-    
+
     # Create overlay for semi-transparent background
     overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
     overlay_draw = ImageDraw.Draw(overlay)
     overlay_draw.rectangle(bg_bbox, fill=(0, 0, 0, 180))
-    
+
     # Composite overlay
     img = img.convert('RGBA')
     img = Image.alpha_composite(img, overlay)
     img = img.convert('RGB')
-    
+
     # Draw text
     draw = ImageDraw.Draw(img)
     draw.text((x, y), text, font=font, fill=(255, 255, 255))
-    
+
     # Save
     output_dir = Path(output_path).parent
     output_dir.mkdir(parents=True, exist_ok=True)

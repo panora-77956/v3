@@ -15,7 +15,7 @@ Based on the pattern from geminiService.ts (executeWithKeyRotation)
 
 import time
 import threading
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Callable, List, Optional, Any, Dict
 
 
@@ -43,14 +43,14 @@ class APIKeyRotationManager:
     - Minimum 2s between calls on same key
     - Automatically skips rate-limited keys
     """
-    
+
     # Configuration constants
     MAX_RETRIES_PER_KEY = 3  # Try each key up to 3 times with backoff
     INITIAL_BACKOFF_SECONDS = 2.0  # Start with 2 seconds
     COOLDOWN_SECONDS = 60.0  # 60 seconds cooldown after exhausting retries
     MIN_CALL_INTERVAL_SECONDS = 2.0  # Minimum 2 seconds between calls on same key
     EXHAUSTED_KEYS_RETRY_INTERVAL_SECONDS = 5.0  # Wait 5s before rechecking when all keys exhausted
-    
+
     def __init__(self, api_keys: List[str], log_callback: Optional[Callable[[str], None]] = None):
         """
         Initialize the rotation manager
@@ -62,43 +62,43 @@ class APIKeyRotationManager:
         self.api_keys = [key for key in api_keys if key and key.strip()]
         self.log_callback = log_callback
         self.lock = threading.Lock()
-        
+
         # Initialize trackers for each key
         self.key_trackers: Dict[str, KeyUsageTracker] = {}
         for key in self.api_keys:
             self.key_trackers[key] = KeyUsageTracker(key=key)
-        
+
         if not self.api_keys:
             raise ValueError("No valid API keys provided")
-    
+
     def _log(self, msg: str):
         """Log message if callback is provided"""
         if self.log_callback:
             self.log_callback(msg)
-    
+
     def _key_preview(self, key: str) -> str:
         """Get a safe preview of the key for logging"""
         if len(key) > 6:
             return f"...{key[-6:]}"
         return "***"
-    
+
     def _is_key_available(self, tracker: KeyUsageTracker) -> bool:
         """Check if a key is available (not in cooldown)"""
         current_time = time.time()
         return current_time >= tracker.cooldown_until
-    
+
     def _get_available_keys(self) -> List[KeyUsageTracker]:
         """Get list of available keys (not in cooldown)"""
         current_time = time.time()
         available = []
-        
+
         for key in self.api_keys:
             tracker = self.key_trackers[key]
             if current_time >= tracker.cooldown_until:
                 available.append(tracker)
-        
+
         return available
-    
+
     def _wait_for_min_interval(self, tracker: KeyUsageTracker):
         """Wait if minimum interval hasn't passed since last call"""
         if tracker.last_used_time > 0:
@@ -107,7 +107,7 @@ class APIKeyRotationManager:
                 wait_time = self.MIN_CALL_INTERVAL_SECONDS - elapsed
                 self._log(f"[MIN INTERVAL] Waiting {wait_time:.1f}s before reusing key {self._key_preview(tracker.key)}")
                 time.sleep(wait_time)
-    
+
     def _handle_rate_limit(self, tracker: KeyUsageTracker, retry_count: int) -> bool:
         """
         Handle rate limit error with exponential backoff
@@ -122,7 +122,7 @@ class APIKeyRotationManager:
         tracker.rate_limit_hits += 1
         tracker.last_rate_limit_time = time.time()
         tracker.consecutive_failures += 1
-        
+
         if retry_count >= self.MAX_RETRIES_PER_KEY:
             # Max retries exceeded - put key in cooldown
             tracker.cooldown_until = time.time() + self.COOLDOWN_SECONDS
@@ -131,7 +131,7 @@ class APIKeyRotationManager:
                 f"Cooldown for {self.COOLDOWN_SECONDS}s"
             )
             return False
-        
+
         # Calculate exponential backoff: 2s, 4s, 8s
         backoff_delay = self.INITIAL_BACKOFF_SECONDS * (2 ** retry_count)
         self._log(
@@ -140,7 +140,7 @@ class APIKeyRotationManager:
         )
         time.sleep(backoff_delay)
         return True
-    
+
     def execute_with_rotation(self, api_call: Callable[[str], Any]) -> Any:
         """
         Execute API call with intelligent key rotation
@@ -157,31 +157,31 @@ class APIKeyRotationManager:
         """
         with self.lock:
             all_keys_tried = set()
-            
+
             while True:
                 # Get available keys
                 available_keys = self._get_available_keys()
-                
+
                 if not available_keys:
                     self._log("[EXHAUSTED] All keys are in cooldown. Waiting for cooldown to expire...")
                     # Wait and check again
                     time.sleep(self.EXHAUSTED_KEYS_RETRY_INTERVAL_SECONDS)
                     available_keys = self._get_available_keys()
-                    
+
                     if not available_keys:
                         raise Exception(
                             f"All {len(self.api_keys)} API keys are rate-limited or in cooldown. "
                             f"Please wait {self.COOLDOWN_SECONDS}s before retrying."
                         )
-                
+
                 # Try each available key with exponential backoff
                 for tracker in available_keys:
                     if tracker.key in all_keys_tried:
                         continue
-                    
+
                     # Wait for minimum interval if key was recently used
                     self._wait_for_min_interval(tracker)
-                    
+
                     retry_count = 0
                     while retry_count <= self.MAX_RETRIES_PER_KEY:
                         try:
@@ -189,14 +189,14 @@ class APIKeyRotationManager:
                                 f"[KEY {len(all_keys_tried) + 1}/{len(self.api_keys)}] "
                                 f"Trying key {self._key_preview(tracker.key)}"
                             )
-                            
+
                             # Update usage stats
                             tracker.last_used_time = time.time()
                             tracker.total_calls += 1
-                            
+
                             # Make the API call
                             result = api_call(tracker.key)
-                            
+
                             # Success! Reset failure counters
                             tracker.consecutive_failures = 0
                             self._log(
@@ -204,17 +204,17 @@ class APIKeyRotationManager:
                                 f"(call #{tracker.total_calls})"
                             )
                             return result
-                            
+
                         except Exception as e:
                             error_msg = str(e).lower()
                             tracker.failed_calls += 1
-                            
+
                             # Check if it's a rate limit error
                             is_rate_limit = any(
                                 keyword in error_msg
                                 for keyword in ['429', 'rate limit', 'quota', 'too many requests']
                             )
-                            
+
                             if is_rate_limit:
                                 # Handle rate limit with backoff
                                 should_retry = self._handle_rate_limit(tracker, retry_count)
@@ -234,11 +234,11 @@ class APIKeyRotationManager:
                                 tracker.consecutive_failures += 1
                                 all_keys_tried.add(tracker.key)
                                 break
-                    
+
                     # If we exhausted retries, mark as tried
                     if retry_count > self.MAX_RETRIES_PER_KEY:
                         all_keys_tried.add(tracker.key)
-                
+
                 # Check if we've tried all keys
                 if len(all_keys_tried) >= len(self.api_keys):
                     raise Exception(
@@ -246,7 +246,7 @@ class APIKeyRotationManager:
                         f"Total calls made: {sum(t.total_calls for t in self.key_trackers.values())}, "
                         f"Total failures: {sum(t.failed_calls for t in self.key_trackers.values())}"
                     )
-    
+
     def get_status(self) -> Dict[str, Any]:
         """
         Get current status of all keys
@@ -263,7 +263,7 @@ class APIKeyRotationManager:
             1 for t in self.key_trackers.values()
             if current_time < t.cooldown_until
         )
-        
+
         return {
             'total_keys': len(self.api_keys),
             'available_keys': available_count,

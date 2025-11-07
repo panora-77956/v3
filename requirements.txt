@@ -1,10 +1,10 @@
 # Installation tip: pip install -r requirements.txt
 PyQt5>=5.15
 requests>=2.31
-Pillow>=10.0.0
+Pillow>=10.2.0  # Security: Fixed CVE libwebp OOB write and arbitrary code execution
 google-generativeai>=0.3.0
 google-auth>=2.16.0
 google-auth-httplib2>=0.1.0
 python-dotenv>=1.0.0  # Optional: for .env file support
-yt-dlp>=2023.10.0  # For downloading TikTok/YouTube videos
+yt-dlp>=2024.07.01  # Security: Fixed file system modification, RCE, and command injection vulnerabilities
 ffmpeg-python>=0.2.0  # For video scene detection

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, csv, io, re, json, requests
+import csv, io, re, requests
 from typing import List, Dict
 def to_csv_export_url(sheet_url:str)->str:
     if "export?format=csv" in sheet_url: return sheet_url

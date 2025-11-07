@@ -30,13 +30,20 @@ wheels/
 *.bak
 *~
 
-# Documentation/Reports (keep only README.md)
-*_SUMMARY.md
-*_REPORT.md
+# Documentation/Reports (keep only README.md and guides in root)
+# Archive historical docs to docs/archive/
+*_SUMMARY*.md
+*_REPORT*.md
 *_IMPLEMENTATION*.md
+*_BUGFIX*.md
+*_FIXES*.md
+TOM_TAT*.md
+SUMMARY*.md
 PR*.md
 REDESIGN*.md
 REFACTOR*.md
+ARCHITECTURE*.md
+RESPONSIVE*.md
 
 # Test files
 test_*.py
