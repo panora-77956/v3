@@ -456,9 +456,16 @@ class _Worker(QObject):
     def _handle_labs_event(self, event, log_func):
         """
         Handle diagnostic events from LabsClient.
+        
         Args:
-            event: Event dict from LabsClient
-            log_func: Logging function to use (self.log.emit or results_queue.put)
+            event: Event dict from LabsClient with structure:
+                   {"kind": str, ...event-specific fields...}
+                   Common event kinds: video_generator_info, api_call_info, 
+                   trying_model, model_success, model_failed, operations_result,
+                   start_one_result, http_other_err
+            log_func: Callable[[str], None] - Logging function to use.
+                     Takes a formatted log message string.
+                     Examples: self.log.emit or lambda msg: queue.put(("log", msg))
         """
         kind = event.get("kind", "")
         if kind == "video_generator_info":
