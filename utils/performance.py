@@ -8,12 +8,16 @@ import time
 import hashlib
 import pickle
 import os
+import logging
 from typing import Any, Callable, Dict, Optional
 from functools import wraps
 from pathlib import Path
 import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
+
+# Get logger for this module
+logger = logging.getLogger(__name__)
 
 
 # Global session with connection pooling
@@ -205,8 +209,6 @@ class DiskCache:
             with open(cache_path, 'wb') as f:
                 pickle.dump(value, f)
         except (pickle.PickleError, IOError) as e:
-            import logging
-            logger = logging.getLogger(__name__)
             logger.warning(f"Could not write to cache: {e}")
     
     def clear(self):
