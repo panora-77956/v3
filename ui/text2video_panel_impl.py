@@ -530,14 +530,18 @@ class _Worker(QObject):
         p = self.payload
         st = cfg.load()
         
-        # ISSUE #4 FIX: Multi-account support
+        # ISSUE #4 FIX: Multi-account support with parallel processing
         account_mgr = get_account_manager()
         
-        # Check if multi-account mode is enabled
+        # Check if multi-account mode is enabled for parallel processing
         if account_mgr.is_multi_account_enabled():
             self.log.emit(f"[INFO] Multi-account mode: {len(account_mgr.get_enabled_accounts())} accounts active")
+            self.log.emit(f"[INFO] Using PARALLEL processing for faster generation")
+            self._run_video_parallel(p, account_mgr)
+            return
         else:
             # Fallback to single account mode
+            self.log.emit(f"[INFO] Single-account mode: Using SEQUENTIAL processing")
             tokens = st.get("tokens") or []
             project_id = st.get("default_project_id") or DEFAULT_PROJECT_ID
         
@@ -557,18 +561,6 @@ class _Worker(QObject):
         for scene_idx, scene in enumerate(p["scenes"], start=1):
             ratio = scene["aspect"]
             model_key = p.get("model_key","")
-
-            # ISSUE #4 FIX: Use round-robin account selection for each scene
-            if account_mgr.is_multi_account_enabled():
-                account = account_mgr.get_account_for_scene(scene_idx - 1)  # 0-based index
-                if account:
-                    tokens = account.tokens
-                    project_id = account.project_id
-                    self.log.emit(f"[INFO] Scene {scene_idx} → Account: {account.name} (ProjectID: {project_id[:8]}...)")
-                else:
-                    self.log.emit(f"[WARN] No account available for scene {scene_idx}, using default")
-                    tokens = st.get("tokens") or []
-                    project_id = st.get("default_project_id") or DEFAULT_PROJECT_ID
             
             # Create or reuse client for this project_id
             if project_id not in client_cache:
@@ -818,3 +810,339 @@ class _Worker(QObject):
                             self.job_card.emit(card)
                         except Exception as e:
                             self.log.emit(f"[ERR] 4K upscale fail: {e}")
+    
+    def _run_video_parallel(self, p, account_mgr):
+        """
+        Parallel video generation using multiple accounts
+        Distributes scenes across accounts using round-robin for faster processing
+        """
+        import threading
+        import time
+        from queue import Queue
+        
+        st = cfg.load()
+        copies = p["copies"]
+        title = p["title"]
+        dir_videos = p["dir_videos"]
+        up4k = p.get("upscale_4k", False)
+        quality = p.get("quality", "1080p")
+        auto_download = p.get("auto_download", True)
+        thumbs_dir = os.path.join(dir_videos, "thumbs")
+        
+        accounts = account_mgr.get_enabled_accounts()
+        num_accounts = len(accounts)
+        
+        self.log.emit(f"[INFO] 🚀 Parallel mode: {num_accounts} accounts, {len(p['scenes'])} scenes")
+        
+        # Distribute scenes across accounts using round-robin
+        batches = [[] for _ in range(num_accounts)]
+        for scene_idx, scene in enumerate(p["scenes"], start=1):
+            account_idx = (scene_idx - 1) % num_accounts
+            batches[account_idx].append((scene_idx, scene))
+        
+        # Results queue for thread-safe communication
+        results_queue = Queue()
+        all_jobs = []  # Thread-safe storage for all jobs
+        jobs_lock = threading.Lock()
+        
+        # Create and start threads
+        threads = []
+        for i, (account, batch) in enumerate(zip(accounts, batches)):
+            if not batch:
+                continue
+            
+            thread = threading.Thread(
+                target=self._process_scene_batch,
+                args=(account, batch, p, results_queue, all_jobs, jobs_lock, i),
+                daemon=True,
+                name=f"Text2Video-{account.name}"
+            )
+            threads.append(thread)
+            self.log.emit(f"[INFO] Thread {i+1}: {len(batch)} scenes → {account.name}")
+            thread.start()
+        
+        # Monitor progress from all threads
+        total_scenes = len(p["scenes"])
+        completed_starts = 0
+        
+        while completed_starts < total_scenes:
+            if self.should_stop:
+                self.log.emit("[INFO] Parallel processing stopped by user")
+                break
+            
+            try:
+                # Wait for results from any thread
+                msg_type, data = results_queue.get(timeout=1.0)
+                
+                if msg_type == "scene_started":
+                    scene_idx, job_infos = data
+                    completed_starts += 1
+                    self.log.emit(f"[INFO] Scene {scene_idx} started ({completed_starts}/{total_scenes})")
+                elif msg_type == "card":
+                    # Emit card update
+                    self.job_card.emit(data)
+                elif msg_type == "log":
+                    self.log.emit(data)
+                    
+            except Exception:
+                # Timeout, check if threads still running
+                if all(not t.is_alive() for t in threads):
+                    break
+        
+        # Wait for all threads to complete scene starts
+        for thread in threads:
+            thread.join(timeout=10.0)
+        
+        self.log.emit(f"[INFO] All scenes submitted. Starting polling for {len(all_jobs)} jobs...")
+        
+        # Now poll for all jobs (same logic as sequential but with all jobs from all threads)
+        self._poll_all_jobs(all_jobs, dir_videos, thumbs_dir, up4k, auto_download, quality)
+    
+    def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
+        """Process a batch of scenes in a separate thread"""
+        try:
+            # Create client for this account
+            client = LabsClient(account.tokens, on_event=None)
+            
+            copies = p["copies"]
+            model_key = p.get("model_key", "")
+            dir_videos = p["dir_videos"]
+            
+            thread_name = f"T{thread_id+1}"
+            
+            for scene_idx, scene in batch:
+                if self.should_stop:
+                    results_queue.put(("log", f"{thread_name}: Stopped by user"))
+                    break
+                
+                try:
+                    ratio = scene["aspect"]
+                    
+                    # Start generation
+                    body = {"prompt": scene["prompt"], "copies": copies, "model": model_key, "aspect_ratio": ratio}
+                    results_queue.put(("log", f"{thread_name}: Starting scene {scene_idx} ({copies} copies)"))
+                    
+                    rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=account.project_id)
+                    
+                    if rc > 0:
+                        actual_count = len(body.get("operation_names", []))
+                        
+                        if actual_count < copies:
+                            results_queue.put(("log", f"{thread_name}: Scene {scene_idx} returned {actual_count}/{copies} operations"))
+                        
+                        # Create job cards
+                        job_infos = []
+                        for copy_idx in range(1, actual_count + 1):
+                            card = {
+                                "scene": scene_idx,
+                                "copy": copy_idx,
+                                "status": "PROCESSING",
+                                "json": scene["prompt"],
+                                "url": "",
+                                "path": "",
+                                "thumb": "",
+                                "dir": dir_videos
+                            }
+                            results_queue.put(("card", card))
+                            
+                            job_info = {
+                                'card': card,
+                                'body': body,
+                                'scene': scene_idx,
+                                'copy': copy_idx,
+                                'client': client  # Keep client reference for polling
+                            }
+                            job_infos.append(job_info)
+                        
+                        # Add to global jobs list (thread-safe)
+                        with jobs_lock:
+                            all_jobs.extend(job_infos)
+                        
+                        results_queue.put(("scene_started", (scene_idx, job_infos)))
+                        results_queue.put(("log", f"{thread_name}: Scene {scene_idx} started successfully"))
+                    else:
+                        # Failed to start
+                        for copy_idx in range(1, copies + 1):
+                            card = {
+                                "scene": scene_idx,
+                                "copy": copy_idx,
+                                "status": "FAILED_START",
+                                "error_reason": "Failed to start video generation",
+                                "json": scene["prompt"],
+                                "url": "",
+                                "path": "",
+                                "thumb": "",
+                                "dir": dir_videos
+                            }
+                            results_queue.put(("card", card))
+                        
+                        results_queue.put(("scene_started", (scene_idx, [])))
+                        results_queue.put(("log", f"{thread_name}: Scene {scene_idx} failed to start"))
+                    
+                    # Small delay between scenes in same thread
+                    time.sleep(0.5)
+                    
+                except Exception as e:
+                    results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
+                    results_queue.put(("scene_started", (scene_idx, [])))
+            
+            results_queue.put(("log", f"{thread_name}: Batch complete"))
+            
+        except Exception as e:
+            results_queue.put(("log", f"Thread {thread_id+1} error: {e}"))
+    
+    def _poll_all_jobs(self, jobs, dir_videos, thumbs_dir, up4k, auto_download, quality):
+        """Poll all jobs for completion (shared logic between parallel and sequential)"""
+        if not jobs:
+            self.log.emit("[INFO] No jobs to poll")
+            return
+        
+        # Group jobs by client to batch poll efficiently
+        client_jobs = {}
+        for job_info in jobs:
+            client = job_info.get('client')
+            if client not in client_jobs:
+                client_jobs[client] = []
+            client_jobs[client].append(job_info)
+        
+        retry_count = {}
+        download_retry_count = {}
+        max_retries = 3
+        max_download_retries = 5
+        
+        for poll_round in range(120):
+            if self.should_stop:
+                self.log.emit("[INFO] Polling stopped by user")
+                break
+            
+            if not jobs:
+                self.log.emit("[INFO] All videos completed or failed")
+                break
+            
+            # Poll each client's jobs
+            for client, client_job_list in list(client_jobs.items()):
+                if not client_job_list:
+                    continue
+                
+                # Extract all operation names for this client
+                names = []
+                for job_info in client_job_list:
+                    job_dict = job_info['body']
+                    names.extend(job_dict.get("operation_names", []))
+                
+                if not names:
+                    continue
+                
+                # Batch check
+                try:
+                    rs = client.batch_check_operations(names)
+                except Exception as e:
+                    self.log.emit(f"[WARN] Poll error (round {poll_round + 1}): {e}")
+                    time.sleep(10)
+                    continue
+                
+                # Process results (same logic as original sequential)
+                new_jobs = []
+                for job_info in client_job_list:
+                    card = job_info['card']
+                    job_dict = job_info['body']
+                    copy_idx = job_info['copy']
+                    
+                    op_names = job_dict.get("operation_names", [])
+                    if not op_names:
+                        if 'no_op_count' not in job_info:
+                            job_info['no_op_count'] = 0
+                        job_info['no_op_count'] += 1
+                        
+                        if job_info['no_op_count'] > 3:
+                            self.log.emit(f"[WARN] Scene {card['scene']} copy {card['copy']}: no operation name")
+                        else:
+                            new_jobs.append(job_info)
+                        continue
+                    
+                    op_index = copy_idx - 1
+                    if op_index >= len(op_names):
+                        self.log.emit(f"[ERR] Scene {card['scene']} copy {card['copy']}: operation index out of bounds")
+                        card["status"] = "FAILED"
+                        card["error_reason"] = "Operation index out of bounds"
+                        self.job_card.emit(card)
+                        continue
+                    
+                    op_name = op_names[op_index]
+                    op_result = rs.get(op_name) or {}
+                    raw_response = op_result.get('raw', {})
+                    status = raw_response.get('status', '')
+                    
+                    scene = card["scene"]
+                    copy_num = card["copy"]
+                    
+                    if status == 'MEDIA_GENERATION_STATUS_SUCCESSFUL':
+                        op_metadata = raw_response.get('operation', {}).get('metadata', {})
+                        video_info = op_metadata.get('video', {})
+                        video_url = video_info.get('fifeUrl', '')
+                        
+                        if video_url:
+                            card["status"] = "READY"
+                            card["url"] = video_url
+                            self.log.emit(f"[SUCCESS] Scene {scene} Copy {copy_num}: Video ready!")
+                            
+                            # Download if enabled
+                            if auto_download:
+                                out_name = f"scene_{scene:03d}_copy_{copy_num:02d}.mp4"
+                                dst_path = os.path.join(dir_videos, out_name)
+                                
+                                if self._download(video_url, dst_path):
+                                    card["path"] = dst_path
+                                    card["status"] = "DOWNLOADED"
+                                    
+                                    # Thumbnail
+                                    thumb = self._make_thumb(dst_path, thumbs_dir, scene, copy_num)
+                                    if thumb:
+                                        card["thumb"] = thumb
+                                    
+                                    self.log.emit(f"[DOWNLOAD] Scene {scene} Copy {copy_num}: Downloaded")
+                                else:
+                                    card["status"] = "DOWNLOAD_FAILED"
+                            
+                            self.job_card.emit(card)
+                        else:
+                            new_jobs.append(job_info)
+                    
+                    elif status in ['MEDIA_GENERATION_STATUS_FAILED', 'MEDIA_GENERATION_STATUS_BLOCKED']:
+                        card["status"] = "FAILED"
+                        card["error_reason"] = status
+                        self.log.emit(f"[FAILED] Scene {scene} Copy {copy_num}: {status}")
+                        self.job_card.emit(card)
+                    
+                    else:
+                        # Still processing
+                        card["status"] = "PROCESSING"
+                        self.job_card.emit(card)
+                        new_jobs.append(job_info)
+                
+                client_jobs[client] = new_jobs
+            
+            # Update main jobs list
+            jobs = [job for job_list in client_jobs.values() for job in job_list]
+            
+            if jobs:
+                self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
+                time.sleep(5)
+        
+        # 4K upscale if requested
+        if up4k and shutil.which("ffmpeg"):
+            self.log.emit("[INFO] Starting 4K upscale...")
+            for job_info in jobs:
+                card = job_info['card']
+                if card.get("path"):
+                    src = card["path"]
+                    dst = src.replace(".mp4", "_4k.mp4")
+                    cmd = ["ffmpeg", "-y", "-i", src, "-vf", "scale=3840:-2", "-c:v", "libx264", "-preset", "fast", dst]
+                    try:
+                        subprocess.run(cmd, check=True)
+                        card["path"] = dst
+                        card["status"] = "UPSCALED_4K"
+                        self.job_card.emit(card)
+                        self.log.emit(f"[4K] Scene {card['scene']} Copy {card['copy']}: Upscaled")
+                    except Exception as e:
+                        self.log.emit(f"[ERR] 4K upscale failed: {e}")

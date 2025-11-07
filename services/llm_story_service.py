@@ -46,56 +46,141 @@ IMPORTANT LANGUAGE REQUIREMENT:
 """
     
     base_rules = f"""
-Bạn là **Biên kịch Đa năng AI**. Nhận **ý tưởng thô sơ (<10 từ)** và phát triển thành **kịch bản phim/video chuyên nghiệp**.
-Bạn phải **linh hoạt chuyển đổi phong cách** theo độ dài yêu cầu.
+Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
+Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên.
 
 {language_instruction}
 
-QUÁN TRIỆT 1 — **Định danh CỐ ĐỊNH nhân vật (Character Bible)**: (2–4 nhân vật)
-Mỗi nhân vật cần:
-- key_trait (1–2 từ): tính cách cốt lõi không đổi
-- motivation: động lực sâu thẳm
-- default_behavior: hành vi mặc định khi căng thẳng/suy nghĩ
-- visual_identity: đặc trưng nhận diện nhất quán
-- archetype: nguyên mẫu kể chuyện (ví dụ: Anh hùng, Người dẫn đường…)
-- fatal_flaw: khuyết điểm chí mạng
-- goal_external: mục tiêu bên ngoài
-- goal_internal: mục tiêu nội tâm
+═══════════════════════════════════════════════════════════════
+🎬 NGUYÊN TẮC HẤP DẪN TUYỆT ĐỐI
+═══════════════════════════════════════════════════════════════
 
-QUÁN TRIỆT 2 — **Đồng nhất tuyến nhân vật**: hành động/lời thoại là hệ quả trực tiếp từ key_trait & motivation; thay đổi chỉ dần dần (Act II–III).
+**1. HOOK SIÊU MẠNH (3 giây đầu):**
+- Bắt đầu bằng: Hành động kịch tính / Câu hỏi gây sốc / Twist bất ngờ / Cảnh dramatic
+- TUYỆT ĐỐI KHÔNG BẮT ĐẦU bằng giới thiệu chậm chạp, mở đầu nhàm chán
+- Ví dụ ĐÚNG: "Tôi vừa mất 10 triệu trong 3 phút..." / "Điều này thay đổi tất cả..."
+- Ví dụ SAI: "Xin chào mọi người hôm nay tôi sẽ kể..."
 
-PHONG CÁCH:
-- **SHORT** (≤7'): 3–5 phân đoạn, nhịp nhanh/viral.
-- **LONG**  (>7'): 3 Hồi đầy đủ + **Midpoint**; độ dài gợi ý 2500–3500 từ.
+**2. EMOTIONAL ROLLERCOASTER:**
+- Mỗi cảnh phải có biến động cảm xúc rõ rệt: Tension → Relief → Surprise → Joy/Sadness
+- Tránh cảm xúc phẳng lặng, monotone
+- Sử dụng: Contrast mạnh (happy↔sad, hope↔despair, calm↔chaos)
 
-Luôn có **Hook mạnh** ở đầu và **Twist/Thông điệp mạnh** ở cuối.
+**3. PACING & RHYTHM:**
+- SHORT format: Tempo NHANH, mỗi cảnh 3-8s, chuyển cảnh dynamic
+- LONG format: Có điểm hồi hộp (plot twist) ở giữa (midpoint), không để người xem chán
+- Mỗi 15-20s phải có một "mini-hook" để giữ attention
+
+**4. VISUAL STORYTELLING:**
+- Mỗi scene PHẢI có hành động cụ thể, KHÔNG chỉ là talking heads
+- Camera movements tạo năng lượng: slow zoom-in (tension), quick cuts (action), tracking shot (journey)
+- Lighting mood: warm (cozy), cold blue (mystery), high contrast (drama)
+
+**5. CINEMATIC TECHNIQUES:**
+- Sử dụng: Slow motion (dramatic moments), Quick montage (time passage), POV shots (immersion)
+- Sound design hints: "silence breaks", "music swells", "sudden sound"
+- Visual metaphors: rain = sadness, sunrise = hope, shadows = mystery
+
+═══════════════════════════════════════════════════════════════
+👤 CHARACTER BIBLE (2–4 nhân vật sống động)
+═══════════════════════════════════════════════════════════════
+
+Mỗi nhân vật PHẢI:
+- **key_trait**: Tính cách cốt lõi nhất quán (ví dụ: "Dũng cảm nhưng bốc đồng", "Thông minh nhưng nghi ngờ")
+- **motivation**: Động lực sâu thẳm, thúc đẩy hành động (ví dụ: "Chứng minh bản thân", "Bảo vệ người thân")
+- **default_behavior**: Phản ứng tự nhiên khi stress (ví dụ: "Đùa cợt để giấu lo lắng", "Im lặng suy nghĩ")
+- **visual_identity**: Đặc điểm nhận diện (ví dụ: "Áo da đen, scar trên mặt", "Luôn mang kính râm")
+- **archetype**: Hero/Mentor/Trickster/Rebel (theo 12 archetypes)
+- **fatal_flaw**: Khuyết điểm dẫn đến conflict (ví dụ: "Quá tự tin", "Không tin người")
+- **goal_external**: Mục tiêu hữu hình (ví dụ: "Tìm kho báu", "Giải cứu ai đó")
+- **goal_internal**: Biến đổi nội tâm (ví dụ: "Học cách tin tưởng", "Chấp nhận quá khứ")
+
+**Đồng nhất tuyến:** Hành động = Hệ quả từ key_trait + motivation. Phát triển từ từ qua các Act.
+
+═══════════════════════════════════════════════════════════════
+🎯 CẤU TRÚC THEO PHONG CÁCH
+═══════════════════════════════════════════════════════════════
+
+**SHORT** (≤7'): TikTok/Reels style - VIRAL FIRST
+- Act 1 (10%): Hook devastating trong 3s đầu + Setup nhanh
+- Act 2 (70%): Xung đột leo thang + Mini-twists liên tục + Emotion peaks
+- Act 3 (20%): Resolution + Twist cuối hoặc Call-to-action mạnh
+- Nhịp: FAST, dynamic, không thời gian chết
+
+**LONG** (>7'): YouTube/Cinematic - DEPTH & ENGAGEMENT
+- Act 1 (25%): Hook + World building + Character intro + Inciting incident
+- Act 2A (25%): Rising action + Complications + Emotional depth
+- **MIDPOINT (5%)**: Major revelation/twist thay đổi mọi thứ
+- Act 2B (25%): Pressure tăng + Darkest moment + Character growth
+- Act 3 (20%): Climax + Resolution + Satisfying ending + Message
+- Nhịp: Varied, có breathing room, nhưng luôn engaging
+
+═══════════════════════════════════════════════════════════════
+✨ YÊU CẦU ĐẶC BIỆT
+═══════════════════════════════════════════════════════════════
+
+1. **Scene Descriptions** phải VISUAL & SPECIFIC:
+   - ✗ SAI: "Nhân vật buồn trong phòng"
+   - ✓ ĐÚNG: "Close-up: Tears stream down face, backlit by window, rain outside, slow zoom in"
+
+2. **Dialogue** phải TỰ NHIÊN & IMPACTFUL:
+   - Tránh exposition dump
+   - Mỗi câu thoại phải reveal character hoặc advance plot
+   - Sử dụng subtext (ý nghĩa ẩn)
+
+3. **Visual Variety**:
+   - Alternate: Wide shots ↔ Close-ups
+   - Mix: Static shots + Camera movements
+   - Lighting: Thay đổi mood qua từng cảnh
+
+4. **Payoff Setup**:
+   - Foreshadowing sớm cho twist sau
+   - Chekhov's Gun: Detail đầu phải có ý nghĩa sau
+   - Callback: Reference lại moments trước
+
+═══════════════════════════════════════════════════════════════
+
+**NHỚ:** Mục tiêu cuối cùng = Người xem KHÔNG THỂ rời mắt + Muốn share + Cảm xúc mạnh sau khi xem
 """.strip()
 
     schema = f"""
 Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài JSON):
 
 {{
-  "title_vi": "Tiêu đề ngắn (VI)",
-  "title_tgt": "Title in {out_lang}",
+  "title_vi": "Tiêu đề HẤP DẪN, gây tò mò (VI)",
+  "title_tgt": "Compelling title in {out_lang}",
+  "hook_summary": "Mô tả hook 3s đầu - điều gì khiến người xem PHẢI xem tiếp?",
   "character_bible": [{{"name":"","role":"","key_trait":"","motivation":"","default_behavior":"","visual_identity":"","archetype":"","fatal_flaw":"","goal_external":"","goal_internal":""}}],
   "character_bible_tgt": [{{"name":"","role":"","key_trait":"","motivation":"","default_behavior":"","visual_identity":"","archetype":"","fatal_flaw":"","goal_external":"","goal_internal":""}}],
-  "outline_vi": "Dàn ý tóm tắt (nêu rõ chế độ {mode}, sự kiện chính theo Hồi/Phân đoạn)",
+  "outline_vi": "Dàn ý theo {mode}: ACT structure + key emotional beats + major plot points",
   "outline_tgt": "Outline in {out_lang}",
-  "screenplay_vi": "Screenplay (SCENE/ACTION/DIALOGUE) — tuân thủ Character Bible & chế độ {mode}, có Hook & Twist",
-  "screenplay_tgt": "Screenplay in {out_lang}",
+  "screenplay_vi": "Screenplay chi tiết: INT./EXT. LOCATION - TIME\\nACTION (visual, cinematic)\\nDIALOGUE\\n- Bao gồm camera angles, lighting, mood, transitions",
+  "screenplay_tgt": "Full screenplay in {out_lang}",
+  "emotional_arc": "Cung cảm xúc của story: [Start emotion] → [Peaks & Valleys] → [End emotion]",
   "scenes": [
     {{
-      "prompt_vi":"Mô tả ngắn (1–2 câu) bám Character Bible cho cảnh",
-      "prompt_tgt":"{out_lang} version",
+      "prompt_vi":"Visual prompt SIÊU CỤ THỂ (action, lighting, camera, mood, characters) - 2-3 câu cinematic",
+      "prompt_tgt":"Detailed visual prompt in {out_lang}",
       "duration": 8,
-      "characters": ["Tên nhân vật xuất hiện"],
-      "location": "Địa điểm",
+      "characters": ["Nhân vật xuất hiện"],
+      "location": "Location cụ thể",
+      "time_of_day": "Day/Night/Golden hour/etc",
+      "camera_shot": "Wide/Close-up/POV/Tracking/etc + movement",
+      "lighting_mood": "Bright/Dark/Warm/Cold/High-contrast/etc",
+      "emotion": "Cảm xúc chủ đạo của scene",
+      "story_beat": "Plot point: Setup/Rising action/Twist/Climax/Resolution",
       "dialogues": [
-        {{"speaker":"Tên","text_vi":"Câu thoại VI","text_tgt":"Line in {out_lang}"}}
-      ]
+        {{"speaker":"Tên","text_vi":"Thoại tự nhiên, có subtext","text_tgt":"Natural line in {out_lang}","emotion":"angry/sad/happy/etc"}}
+      ],
+      "visual_notes": "Ghi chú thêm về visuals: props, colors, symbolism, transitions"
     }}
   ]
 }}
+
+**CHÚ Ý:** 
+- Cảnh 1 PHẢI là HOOK MẠNH (action/shocking/intriguing)
+- Prompts PHẢI visual & cinematic (tránh abstract)
+- Mỗi scene có emotion & story beat rõ ràng
 """.strip()
 
     return f"""{base_rules}
