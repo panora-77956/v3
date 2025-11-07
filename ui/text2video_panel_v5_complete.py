@@ -1187,6 +1187,7 @@ class Text2VideoPanelV5(QWidget):
             if self._script_data and "scenes" in self._script_data:
                 scene_list = self._script_data["scenes"]
                 if r < len(scene_list):
+                    # Extract location context if extractor function is available
                     if extract_location_context:
                         location_ctx = extract_location_context(scene_list[r])
                     # Part G: Extract dialogues for voiceover

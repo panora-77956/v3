@@ -231,16 +231,15 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     # Priority: dialogues > scene description
     # This ensures the TTS speaks actual dialogue, not visual description
     vo_text = ""
-    if dialogues and isinstance(dialogues, list) and len(dialogues) > 0:
+    if dialogues:
         # Extract dialogue text based on target language
         dialogue_texts = []
         for dlg in dialogues:
             if isinstance(dlg, dict):
-                # Use text_tgt for non-Vietnamese, text_vi for Vietnamese
-                if lang_code == "vi":
-                    text = dlg.get("text_vi", dlg.get("text_tgt", ""))
-                else:
-                    text = dlg.get("text_tgt", dlg.get("text_vi", ""))
+                # Determine which text field to use based on language
+                text_field = "text_vi" if lang_code == "vi" else "text_tgt"
+                fallback_field = "text_tgt" if lang_code == "vi" else "text_vi"
+                text = dlg.get(text_field) or dlg.get(fallback_field) or ""
                 
                 speaker = dlg.get("speaker", "")
                 if speaker and text:
