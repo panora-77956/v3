@@ -842,7 +842,7 @@ class _Worker(QObject):
         
         # Results queue for thread-safe communication
         results_queue = Queue()
-        all_jobs = []  # Thread-safe storage for all jobs
+        all_jobs = []  # Jobs storage protected by jobs_lock for thread-safety
         jobs_lock = threading.Lock()
         
         # Create and start threads
@@ -872,6 +872,7 @@ class _Worker(QObject):
             
             try:
                 # Wait for results from any thread
+                import queue
                 msg_type, data = results_queue.get(timeout=1.0)
                 
                 if msg_type == "scene_started":
@@ -884,14 +885,18 @@ class _Worker(QObject):
                 elif msg_type == "log":
                     self.log.emit(data)
                     
-            except Exception:
+            except queue.Empty:
                 # Timeout, check if threads still running
                 if all(not t.is_alive() for t in threads):
                     break
+            except Exception as e:
+                self.log.emit(f"[WARN] Progress monitoring error: {e}")
+                if all(not t.is_alive() for t in threads):
+                    break
         
-        # Wait for all threads to complete scene starts
+        # Wait for all threads to complete scene starts (generous timeout for API calls)
         for thread in threads:
-            thread.join(timeout=10.0)
+            thread.join(timeout=60.0)  # 60s timeout to handle slow network/API
         
         self.log.emit(f"[INFO] All scenes submitted. Starting polling for {len(all_jobs)} jobs...")
         
@@ -979,7 +984,8 @@ class _Worker(QObject):
                         results_queue.put(("scene_started", (scene_idx, [])))
                         results_queue.put(("log", f"{thread_name}: Scene {scene_idx} failed to start"))
                     
-                    # Small delay between scenes in same thread
+                    # Small delay between scenes to respect API rate limits
+                    # TODO: Make this configurable per account rate limits
                     time.sleep(0.5)
                     
                 except Exception as e:
