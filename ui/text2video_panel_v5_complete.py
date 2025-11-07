@@ -23,7 +23,7 @@ from PyQt5.QtWidgets import (
     QPushButton, QShortcut, QSlider, QSpinBox, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget, QTabWidget,
     QFileDialog, QFrame, QApplication, QStackedWidget, QGridLayout,
-    QSizePolicy  # Added for responsive card sizing
+    QSizePolicy, QProgressBar  # Added QProgressBar
 )
 
 # Original imports
@@ -658,6 +658,31 @@ class Text2VideoPanelV5(QWidget):
         """)
         colL.addWidget(self.btn_clear_project)
 
+        # PROGRESS BAR - NEW
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setVisible(False)  # Hidden by default
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("%p% - Đang xử lý...")
+        self.progress_bar.setMinimumHeight(32)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #4CAF50;
+                border-radius: 5px;
+                text-align: center;
+                background-color: #E8F5E9;
+                font-weight: bold;
+                font-size: 12px;
+            }
+            QProgressBar::chunk {
+                background-color: #4CAF50;
+                border-radius: 3px;
+            }
+        """)
+        colL.addWidget(self.progress_bar)
+
         # CONSOLE
         lbl = QLabel("Console:")
         lbl.setFont(FONT_H2)
@@ -980,6 +1005,10 @@ class Text2VideoPanelV5(QWidget):
 
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
+        
+        # Hide progress bar when stopped
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setValue(0)
 
     def _on_auto_generate(self):
         """Auto-generate - 3 steps: script -> video -> download"""
@@ -990,6 +1019,11 @@ class Text2VideoPanelV5(QWidget):
 
         self.btn_auto.setEnabled(False)
         self.btn_stop.setEnabled(True)
+        
+        # Show and reset progress bar
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.progress_bar.setFormat("%p% - Đang xử lý...")
 
         # Get settings
         tts_provider = self.cb_tts_provider.currentData()
@@ -1028,6 +1062,7 @@ class Text2VideoPanelV5(QWidget):
 
         if task == "script":
             self.worker.story_done.connect(self._on_story_ready)
+            self.worker.progress_update.connect(self._on_progress_update)  # NEW: Connect progress signal
         else:
             self.worker.job_card.connect(self._on_job_card)
 
@@ -1035,12 +1070,21 @@ class Text2VideoPanelV5(QWidget):
         self.worker.job_finished.connect(self._on_worker_finished_cleanup)
 
         self.thread.start()
+    
+    def _on_progress_update(self, message, percent):
+        """Update progress bar with current progress"""
+        self.progress_bar.setValue(percent)
+        self.progress_bar.setFormat(f"{percent}% - {message}")
 
     def _on_worker_finished_cleanup(self):
         """Handle worker completion with proper cleanup"""
         self._append_log("[INFO] Worker hoàn tất.")
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
+        
+        # Hide progress bar when done
+        self.progress_bar.setVisible(False)
+        self.progress_bar.setValue(0)
 
         # Clean up thread and worker
         if hasattr(self, 'thread') and self.thread:
