@@ -52,7 +52,8 @@ def get_session(
             total=max_retries,
             backoff_factor=backoff_factor,
             status_forcelist=[408, 429, 500, 502, 503, 504],
-            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "TRACE", "POST"]
+            # Allow retries for safe HTTP methods (excluding TRACE for security)
+            allowed_methods=["HEAD", "GET", "PUT", "DELETE", "OPTIONS", "POST"]
         )
         
         # Configure adapter with connection pooling
@@ -124,7 +125,7 @@ class SimpleCache:
         
         # Evict oldest if cache is full
         if len(self._cache) >= self.max_size and key not in self._cache:
-            # Remove oldest entry (simple FIFO)
+            # Remove oldest entry using FIFO (relies on dict insertion order in Python 3.7+)
             oldest_key = next(iter(self._cache))
             del self._cache[oldest_key]
         
@@ -176,7 +177,7 @@ class DiskCache:
     def _get_cache_path(self, key: str) -> Path:
         """Get cache file path for key"""
         # Hash the key to create a valid filename
-        # Using SHA-256 for better security than MD5
+        # Using SHA-256 following security best practices (MD5 would be sufficient for caching)
         key_hash = hashlib.sha256(key.encode()).hexdigest()
         return self.cache_dir / f"{key_hash}.cache"
     

@@ -128,15 +128,16 @@ def get_logger(name: str = None) -> logging.Logger:
     if name is None:
         # Get caller's module name
         import inspect
-        frame = inspect.currentframe()
+        frame = None
+        caller_frame = None
         try:
+            frame = inspect.currentframe()
             caller_frame = frame.f_back
             name = caller_frame.f_globals.get('__name__', 'videoultra')
         finally:
             # Clean up frame references to prevent memory leaks
             del frame
-            if 'caller_frame' in locals():
-                del caller_frame
+            del caller_frame
     
     logger = logging.getLogger(name)
     

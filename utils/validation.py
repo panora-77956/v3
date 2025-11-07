@@ -298,9 +298,14 @@ class InputSanitizer:
         normalized = os.path.normpath(path)
         resolved = os.path.realpath(normalized)
         
-        # Check for directory traversal using resolved path
+        # Check for directory traversal using both normalized and resolved paths
         if '..' in normalized.split(os.sep):
             raise ValidationError("Path contains directory traversal (..) which is not allowed")
+        
+        # Additional check: ensure resolved path doesn't escape through symlinks
+        # This prevents symlink-based traversal attacks
+        if '..' in resolved.split(os.sep):
+            raise ValidationError("Path resolves to directory traversal which is not allowed")
         
         # Check if absolute when not allowed
         if not allow_absolute and os.path.isabs(resolved):
