@@ -72,7 +72,13 @@ def _normalize_status(item: dict) -> str:
 
 def _trim_prompt_text(prompt_text: Any)->str:
     """
-    Extract and build the actual text prompt for video generation from structured prompt data.
+    Extract text from structured prompt while PRESERVING all critical information.
+    
+    REQUIREMENTS (Issue #27):
+    1. MUST preserve visual_style_tags from constraints
+    2. MUST preserve original character_details (no generic template)
+    3. MUST preserve full key_action description
+    4. MUST maintain style consistency information
     
     For new format (with localization, key_action, character_details):
     - Extracts the actual scene description from key_action or localization.{lang}.prompt
@@ -111,7 +117,15 @@ def _trim_prompt_text(prompt_text: Any)->str:
         if "key_action" in obj or "localization" in obj or "character_details" in obj:
             parts = []
             
+            # FIX #27: PRESERVE visual style tags from constraints (CRITICAL)
+            constraints = obj.get("constraints", {})
+            if isinstance(constraints, dict):
+                style_tags = constraints.get("visual_style_tags", [])
+                if style_tags:
+                    parts.append(f"VISUAL STYLE: {', '.join(style_tags)}")
+            
             # 1. Character consistency (CRITICAL for maintaining same character across scenes)
+            # FIX #27: Preserve ORIGINAL character_details (NO modification)
             if obj.get("character_details"):
                 parts.append(str(obj["character_details"]))
             
@@ -131,6 +145,7 @@ def _trim_prompt_text(prompt_text: Any)->str:
                 parts.append(str(obj["setting_details"]))
             
             # 4. Main scene description - try localization first, then key_action
+            # FIX #27: Preserve FULL key_action (NO truncation)
             scene_description = ""
             
             # Try to get localized prompt (preferred)
@@ -159,15 +174,15 @@ def _trim_prompt_text(prompt_text: Any)->str:
             if scene_description:
                 parts.append(scene_description)
             
-            # 5. Camera direction hints (keep it brief)
+            # 5. Camera direction hints (keep it brief - first and last)
             camera_dir = obj.get("camera_direction", [])
-            if isinstance(camera_dir, list) and camera_dir:
-                # Just include the first and last camera hints for brevity
+            if isinstance(camera_dir, list) and len(camera_dir) >= 2:
+                # Include the first and last camera hints for brevity
                 try:
                     first_shot = camera_dir[0].get("shot", "") if isinstance(camera_dir[0], dict) else ""
                     last_shot = camera_dir[-1].get("shot", "") if isinstance(camera_dir[-1], dict) else ""
                     if first_shot or last_shot:
-                        parts.append(f"Camera: {first_shot}; End: {last_shot}")
+                        parts.append(f"Camera: Start: {first_shot}; End: {last_shot}")
                 except (IndexError, AttributeError):
                     pass
             
@@ -175,9 +190,17 @@ def _trim_prompt_text(prompt_text: Any)->str:
             text = "\n\n".join([p for p in parts if p])
             
             # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
+            # FIX #27: Keep visual style tags even when truncating
             if len(text) > MAX_PROMPT_LENGTH:
-                # Keep: character_details + location_lock + scene_description
+                # Keep: visual_style_tags + character_details + location_lock + scene_description
                 priority_parts = []
+                
+                # ALWAYS preserve visual style tags
+                if isinstance(constraints, dict):
+                    style_tags = constraints.get("visual_style_tags", [])
+                    if style_tags:
+                        priority_parts.append(f"VISUAL STYLE: {', '.join(style_tags)}")
+                
                 if obj.get("character_details"):
                     # Truncate character_details if very long
                     char_details = str(obj["character_details"])
