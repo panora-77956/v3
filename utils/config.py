@@ -61,29 +61,29 @@ def validate_config(cfg: dict) -> Tuple[bool, str]:
     """
     if not isinstance(cfg, dict):
         return False, "Config must be a dictionary"
-    
+
     defaults = get_default_config()
     required_keys = set(defaults.keys())
-    
+
     # Check for missing keys
     missing_keys = required_keys - set(cfg.keys())
     if missing_keys:
         logger.warning(f"Config missing keys: {missing_keys}, will use defaults")
-    
+
     # Validate types for existing keys
     for key, default_value in defaults.items():
         if key in cfg:
             expected_type = type(default_value)
             actual_value = cfg[key]
-            
+
             # Allow None for string fields (backward compatibility with legacy configs)
             if expected_type == str and actual_value is None:
                 continue
-                
+
             # Check type match
             if not isinstance(actual_value, expected_type):
                 return False, f"Config key '{key}' has wrong type: expected {expected_type.__name__}, got {type(actual_value).__name__}"
-    
+
     return True, ""
 
 
@@ -96,13 +96,13 @@ def load() -> dict:
     """
     defaults = get_default_config()
     cfg = defaults.copy()
-    
+
     # Try to load existing config
     if os.path.exists(CFG_PATH):
         try:
             with open(CFG_PATH, "r", encoding="utf-8") as f:
                 loaded_cfg = json.load(f)
-                
+
             # Validate loaded config
             is_valid, error_msg = validate_config(loaded_cfg)
             if not is_valid:
@@ -111,14 +111,14 @@ def load() -> dict:
                 # Merge loaded config with defaults (loaded values take precedence)
                 cfg.update(loaded_cfg)
                 logger.info("Config loaded successfully")
-                
+
         except json.JSONDecodeError as e:
             logger.error(f"Config JSON decode error: {e}. Using defaults.")
         except Exception as e:
             logger.error(f"Error loading config: {e}. Using defaults.")
     else:
         logger.info("Config file not found, using defaults")
-    
+
     return cfg
 
 
@@ -153,31 +153,31 @@ def load_with_env() -> dict:
     if DOTENV_AVAILABLE:
         load_dotenv()
         logger.info(".env file loaded (if present)")
-    
+
     # Load base config from JSON
     cfg = load()
-    
+
     # Override with environment variables if present
     google_keys_env = os.getenv("GOOGLE_API_KEYS")
     if google_keys_env:
         cfg["google_keys"] = _parse_comma_separated_env(google_keys_env)
         logger.info(f"Loaded {len(cfg['google_keys'])} Google API keys from environment")
-    
+
     elevenlabs_keys_env = os.getenv("ELEVENLABS_API_KEYS")
     if elevenlabs_keys_env:
         cfg["elevenlabs_keys"] = _parse_comma_separated_env(elevenlabs_keys_env)
         logger.info(f"Loaded {len(cfg['elevenlabs_keys'])} ElevenLabs API keys from environment")
-    
+
     default_project_id_env = os.getenv("DEFAULT_PROJECT_ID")
     if default_project_id_env:
         cfg["default_project_id"] = default_project_id_env
         logger.info("Loaded DEFAULT_PROJECT_ID from environment")
-    
+
     download_root_env = os.getenv("DOWNLOAD_ROOT")
     if download_root_env:
         cfg["download_root"] = download_root_env
         logger.info("Loaded DOWNLOAD_ROOT from environment")
-    
+
     return cfg
 
 
@@ -196,11 +196,11 @@ def save(cfg: dict) -> dict:
     if not is_valid:
         logger.error(f"Cannot save invalid config: {error_msg}")
         return cfg
-    
+
     try:
         _atomic_write_json(CFG_PATH, cfg)
         logger.info("Config saved successfully")
     except Exception as e:
         logger.error(f"Error saving config: {e}")
-    
+
     return cfg

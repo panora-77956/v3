@@ -1,4 +1,4 @@
-import base64, mimetypes, json, time, requests, os, re
+import base64, mimetypes, json, time, requests, re
 from typing import List, Dict, Optional, Tuple, Callable, Any
 
 
@@ -281,10 +281,10 @@ class LabsClient:
         """
         if num_videos > 4:
             num_videos = 4
-        
+
         # Trim prompt if too long
         prompt_text = _trim_prompt_text(prompt)
-        
+
         # Build batch request with multiple copies
         requests_list = []
         for i in range(num_videos):
@@ -296,14 +296,14 @@ class LabsClient:
                 "textInput": {"prompt": prompt_text}
             }
             requests_list.append(item)
-        
+
         payload = {"requests": requests_list}
         if project_id:
             payload["clientContext"] = {"projectId": project_id}
-        
+
         # Call T2V endpoint
         data = self._post(T2V_URL, payload) or {}
-        
+
         # Extract operation names
         operations = data.get("operations", [])
         operation_names = []
@@ -311,5 +311,5 @@ class LabsClient:
             name = (op.get("operation") or {}).get("name") or op.get("name") or ""
             if name:
                 operation_names.append(name)
-        
+
         return operation_names

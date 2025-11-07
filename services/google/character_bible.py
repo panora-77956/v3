@@ -14,36 +14,36 @@ class CharacterBible:
     Character Bible System that maintains detailed character descriptions
     with 5 unique consistency anchors per character.
     """
-    
+
     def __init__(self):
         self.characters: List[Dict[str, Any]] = []
-    
+
     def add_character(self, character_data: Dict[str, Any]) -> None:
         """Add a character to the bible"""
         self.characters.append(character_data)
-    
+
     def get_character(self, name: str) -> Optional[Dict[str, Any]]:
         """Get character by name"""
         for char in self.characters:
             if char.get("name", "").lower() == name.lower():
                 return char
         return None
-    
+
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary format"""
         return {"characters": self.characters}
-    
+
     def to_json(self) -> str:
         """Convert to JSON string"""
         return json.dumps(self.to_dict(), ensure_ascii=False, indent=2)
-    
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> 'CharacterBible':
         """Create from dictionary"""
         bible = cls()
         bible.characters = data.get("characters", [])
         return bible
-    
+
     @classmethod
     def from_json(cls, json_str: str) -> 'CharacterBible':
         """Create from JSON string"""
@@ -68,7 +68,7 @@ def create_character_bible(video_concept: str, script: str,
         CharacterBible object with detailed character descriptions
     """
     bible = CharacterBible()
-    
+
     # If we have existing bible from LLM, enhance it with consistency anchors
     if existing_bible and isinstance(existing_bible, list):
         for char_data in existing_bible:
@@ -79,7 +79,7 @@ def create_character_bible(video_concept: str, script: str,
         characters = _extract_characters_from_script(script, video_concept)
         for char in characters:
             bible.add_character(char)
-    
+
     return bible
 
 
@@ -97,7 +97,7 @@ def _enhance_character_with_anchors(char_data: Dict[str, Any], script: str) -> D
     name = char_data.get("name", "Character")
     role = char_data.get("role", "")
     visual_identity = char_data.get("visual_identity", "")
-    
+
     # Create detailed physical blueprint
     enhanced = {
         "name": name,
@@ -109,7 +109,7 @@ def _enhance_character_with_anchors(char_data: Dict[str, Any], script: str) -> D
         "fatal_flaw": char_data.get("fatal_flaw", ""),
         "goal_external": char_data.get("goal_external", ""),
         "goal_internal": char_data.get("goal_internal", ""),
-        
+
         # Physical Blueprint (from visual_identity + defaults)
         "physical_blueprint": {
             "age_range": _extract_age(visual_identity, role),
@@ -118,7 +118,7 @@ def _enhance_character_with_anchors(char_data: Dict[str, Any], script: str) -> D
             "build": _extract_build(visual_identity, role),
             "skin_tone": _extract_skin_tone(visual_identity),
         },
-        
+
         # Hair DNA
         "hair_dna": {
             "color": _extract_hair_color(visual_identity),
@@ -126,14 +126,14 @@ def _enhance_character_with_anchors(char_data: Dict[str, Any], script: str) -> D
             "style": _extract_hair_style(visual_identity),
             "texture": _extract_hair_texture(visual_identity),
         },
-        
+
         # Eye Signature
         "eye_signature": {
             "color": _extract_eye_color(visual_identity),
             "shape": _extract_eye_shape(visual_identity),
             "expression": _extract_eye_expression(char_data.get("key_trait", "")),
         },
-        
+
         # Facial Map
         "facial_map": {
             "nose": _extract_nose(visual_identity),
@@ -141,17 +141,17 @@ def _enhance_character_with_anchors(char_data: Dict[str, Any], script: str) -> D
             "jawline": _extract_jawline(visual_identity),
             "distinguishing_marks": _extract_marks(visual_identity),
         },
-        
+
         # 5 Unique Consistency Anchors
         "consistency_anchors": _generate_consistency_anchors(name, role, visual_identity, char_data),
-        
+
         # Scene Reminder Phrases
         "scene_reminders": _generate_scene_reminders(name, role, char_data),
-        
+
         # Original visual identity for reference
         "visual_identity": visual_identity,
     }
-    
+
     return enhanced
 
 
@@ -161,23 +161,23 @@ def _extract_characters_from_script(script: str, concept: str) -> List[Dict[str,
     This is a fallback method that creates basic character entries.
     """
     characters = []
-    
+
     # Simple extraction: Look for dialogue patterns (CHARACTER: dialogue)
     # More flexible pattern to catch names like "Dr. Smith", "Mary-Jane", etc.
     # Note: \- and \. are escaped for clarity, though - in character class doesn't need escaping at end
     dialogue_pattern = r'^([A-Z][a-zA-Z\s\-\.]+):\s*(.+)$'
     names = set()
-    
+
     for line in script.split('\n'):
         match = re.match(dialogue_pattern, line.strip())
         if match:
             name = match.group(1).strip().title()
             names.add(name)
-    
+
     # If no dialogues found, create a generic character
     if not names:
         names.add("Main Character")
-    
+
     # Create basic character entries
     for name in names:
         char = {
@@ -229,7 +229,7 @@ def _extract_characters_from_script(script: str, concept: str) -> List[Dict[str,
             ],
         }
         characters.append(char)
-    
+
     return characters
 
 
@@ -240,13 +240,13 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
     These are specific, unchanging visual identifiers that persist across all scenes.
     """
     anchors = []
-    
+
     # Parse visual_identity for specific details
     vi_lower = visual_identity.lower()
-    
+
     # Try to extract specific visual details from visual_identity
     potential_anchors = []
-    
+
     # Check for accessories
     if "glasses" in vi_lower or "spectacles" in vi_lower:
         potential_anchors.append("Wears distinctive glasses/spectacles")
@@ -258,7 +258,7 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
         potential_anchors.append("Distinctive ring on finger")
     if "earring" in vi_lower:
         potential_anchors.append("Wears earrings")
-    
+
     # Check for marks/tattoos
     if "tattoo" in vi_lower:
         potential_anchors.append("Visible tattoo on wrist/arm")
@@ -268,7 +268,7 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
         potential_anchors.append("Beauty mark/mole in specific location")
     if "freckle" in vi_lower:
         potential_anchors.append("Freckles pattern on face")
-    
+
     # Check for clothing
     if "shirt" in vi_lower:
         color = _extract_color_near_word(visual_identity, "shirt")
@@ -279,7 +279,7 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
         potential_anchors.append("Distinctive jacket always worn")
     if "apron" in vi_lower:
         potential_anchors.append("Apron worn (specific color/style)")
-    
+
     # Hair specific
     if "ponytail" in vi_lower:
         potential_anchors.append("Hair always in ponytail")
@@ -289,12 +289,12 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
         potential_anchors.append("Hair in braid style")
     if "tucked" in vi_lower or "behind ear" in vi_lower:
         potential_anchors.append("Hair tucked behind left ear")
-    
+
     # Use found anchors, or create generic ones
     if potential_anchors:
         # Take up to 5 unique anchors
         anchors = potential_anchors[:5]
-    
+
     # Fill remaining slots with generic but specific anchors
     generic_anchors = [
         f"Consistent facial structure for {name}",
@@ -308,14 +308,14 @@ def _generate_consistency_anchors(name: str, role: str, visual_identity: str,
         f"Consistent height relative to surroundings",
         f"Maintains specific mannerisms",
     ]
-    
+
     while len(anchors) < 5:
         for anchor in generic_anchors:
             if anchor not in anchors:
                 anchors.append(anchor)
                 if len(anchors) >= 5:
                     break
-    
+
     # Number the anchors
     return [f"{i+1}. {anchor}" for i, anchor in enumerate(anchors[:5])]
 
@@ -326,18 +326,18 @@ def _generate_scene_reminders(name: str, role: str, char_data: Dict[str, Any]) -
     """
     key_trait = char_data.get("key_trait", "")
     visual = char_data.get("visual_identity", "")
-    
+
     reminders = [
         f"Character {name} maintains consistent appearance",
         f"Same face, body, and features as previous scenes",
         f"Keep {name}'s visual identity: {visual[:50]}..." if visual else f"Keep {name}'s appearance",
     ]
-    
+
     if key_trait:
         reminders.append(f"{name} exhibits {key_trait} trait")
-    
+
     reminders.append(f"No changes to {name}'s outfit or hair between scenes")
-    
+
     return reminders
 
 
@@ -518,7 +518,7 @@ def _extract_marks(visual_identity: str) -> str:
         marks.append("tattoo")
     if "freckle" in vi_lower:
         marks.append("freckles")
-    
+
     return ", ".join(marks) if marks else "none"
 
 
@@ -529,7 +529,7 @@ def _extract_color_near_word(text: str, word: str) -> Optional[str]:
               "orange", "pink", "brown", "violet", "cyan", "magenta", "navy", "maroon", 
               "beige", "tan", "gold", "silver", "crimson", "indigo", "teal"]
     text_lower = text.lower()
-    
+
     # Find position of word
     if word.lower() in text_lower:
         idx = text_lower.find(word.lower())
@@ -538,7 +538,7 @@ def _extract_color_near_word(text: str, word: str) -> Optional[str]:
         for color in colors:
             if color in nearby:
                 return color
-    
+
     return None
 
 
@@ -557,7 +557,7 @@ def inject_character_consistency(scene_prompt: str, bible: CharacterBible,
     """
     if not bible.characters:
         return scene_prompt
-    
+
     # If no specific characters mentioned, use all characters
     if not character_names:
         characters_to_inject = bible.characters
@@ -566,42 +566,42 @@ def inject_character_consistency(scene_prompt: str, bible: CharacterBible,
             char for char in bible.characters 
             if char.get("name", "").lower() in [n.lower() for n in character_names]
         ]
-    
+
     if not characters_to_inject:
         return scene_prompt
-    
+
     # Build character consistency block
     consistency_parts = []
-    
+
     for char in characters_to_inject:
         name = char.get("name", "Character")
         char_block = [f"\n[{name} - CONSISTENT APPEARANCE]"]
-        
+
         # Physical blueprint
         pb = char.get("physical_blueprint", {})
         if pb:
             char_block.append(f"Physical: {pb.get('age_range', '')} {pb.get('race_ethnicity', '')}, {pb.get('height', '')}, {pb.get('build', '')} build, {pb.get('skin_tone', '')} skin")
-        
+
         # Hair DNA
         hair = char.get("hair_dna", {})
         if hair:
             char_block.append(f"Hair: {hair.get('color', '')} {hair.get('length', '')} {hair.get('style', '')} {hair.get('texture', '')}")
-        
+
         # Eye signature
         eyes = char.get("eye_signature", {})
         if eyes:
             char_block.append(f"Eyes: {eyes.get('color', '')} {eyes.get('shape', '')} with {eyes.get('expression', '')} expression")
-        
+
         # Consistency anchors (top 3 for scene prompts to avoid bloat)
         anchors = char.get("consistency_anchors", [])
         if anchors:
             char_block.append(f"Key identifiers: {', '.join([a.split('. ', 1)[1] if '. ' in a else a for a in anchors[:3]])}")
-        
+
         consistency_parts.append(" | ".join(char_block))
-    
+
     # Inject at the beginning of the prompt
     enhanced_prompt = "\n".join(consistency_parts) + "\n\n" + scene_prompt
-    
+
     return enhanced_prompt
 
 
@@ -620,7 +620,7 @@ def extract_consistency_anchors(bible: CharacterBible) -> Dict[str, List[str]]:
         name = char.get("name", "Character")
         anchors = char.get("consistency_anchors", [])
         result[name] = anchors
-    
+
     return result
 
 
@@ -636,57 +636,57 @@ def format_character_bible_for_display(bible: CharacterBible) -> str:
     """
     if not bible.characters:
         return "(No characters in bible)"
-    
+
     parts = []
     parts.append("=== CHARACTER BIBLE ===\n")
-    
+
     for i, char in enumerate(bible.characters, 1):
         name = char.get("name", "Character")
         role = char.get("role", "")
-        
+
         parts.append(f"\n{i}. Character: {name} ({role})")
         parts.append("-" * 60)
-        
+
         # Physical Blueprint
         pb = char.get("physical_blueprint", {})
         if pb:
             parts.append(f"Physical Blueprint: {pb.get('age_range', '')}, {pb.get('race_ethnicity', '')}, {pb.get('height', '')}, {pb.get('build', '')} build, {pb.get('skin_tone', '')} skin")
-        
+
         # Hair DNA
         hair = char.get("hair_dna", {})
         if hair:
             parts.append(f"Hair DNA: {hair.get('color', '')} color, {hair.get('length', '')} length, {hair.get('style', '')} style, {hair.get('texture', '')} texture")
-        
+
         # Eye Signature
         eyes = char.get("eye_signature", {})
         if eyes:
             parts.append(f"Eye Signature: {eyes.get('color', '')} color, {eyes.get('shape', '')} shape, {eyes.get('expression', '')} expression")
-        
+
         # Facial Map
         face = char.get("facial_map", {})
         if face:
             parts.append(f"Facial Map: {face.get('nose', '')} nose, {face.get('lips', '')} lips, {face.get('jawline', '')} jawline, marks: {face.get('distinguishing_marks', '')}")
-        
+
         # Consistency Anchors
         anchors = char.get("consistency_anchors", [])
         if anchors:
             parts.append("Consistency Anchors:")
             for anchor in anchors:
                 parts.append(f"  {anchor}")
-        
+
         # Scene Reminders
         reminders = char.get("scene_reminders", [])
         if reminders:
             parts.append("Scene Reminders:")
             for reminder in reminders[:3]:  # Show top 3
                 parts.append(f"  • {reminder}")
-        
+
         # Key Trait & Motivation
         if char.get("key_trait"):
             parts.append(f"Key Trait: {char.get('key_trait')}")
         if char.get("motivation"):
             parts.append(f"Motivation: {char.get('motivation')}")
-        
+
         parts.append("")  # Empty line between characters
-    
+
     return "\n".join(parts)

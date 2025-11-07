@@ -74,17 +74,17 @@ class SettingsPanel(QWidget):
         row2 = _QW()
         grid2 = QHBoxLayout(row2)  # Use HBoxLayout for true 50-50 split
         grid2.setSpacing(12)
-        
+
         # Left column (50%)
         left_col = _QW()
         left_layout = QVBoxLayout(left_col)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(4)
-        
+
         labs_init = self.state.get('labs_tokens') or self.state.get('tokens') or []
         self.w_labs = KeyList(title='Google Labs Token (OAuth)', kind='labs', initial=labs_init)
         left_layout.addWidget(self.w_labs)
-        
+
         self.ed_project = _line('Project ID')
         self.ed_project.setText(self.state.get('flow_project_id','87b19267-13d6-49cd-a7ed-db19a90c9339'))
         proj_box = _QW()
@@ -93,18 +93,18 @@ class SettingsPanel(QWidget):
         hp.addWidget(_lab('Project ID cho Flow:'))
         hp.addWidget(self.ed_project)
         left_layout.addWidget(proj_box)
-        
+
         grid2.addWidget(left_col, 1)  # stretch factor = 1
-        
+
         # Right column (50%)
         right_col = _QW()
         right_layout = QVBoxLayout(right_col)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(4)
-        
+
         self.w_eleven = KeyList(title='Elevenlabs API Keys', kind='elevenlabs', initial=self.state.get('elevenlabs_api_keys') or [])
         right_layout.addWidget(self.w_eleven)
-        
+
         self.ed_voice = _line('Voice ID')
         self.ed_voice.setText(self.state.get('default_voice_id','3VnrjnYrskPMDsapTr8X'))
         voice_box = _QW()
@@ -113,34 +113,34 @@ class SettingsPanel(QWidget):
         hv.addWidget(_lab('Voice ID (Elevenlabs):'))
         hv.addWidget(self.ed_voice)
         right_layout.addWidget(voice_box)
-        
+
         grid2.addWidget(right_col, 1)  # stretch factor = 1
-        
+
         root.addWidget(row2)
 
         # Dòng 3: Google API | OpenAI API (Equal width - FORCED)
         row3 = _QW()
         grid3 = QHBoxLayout(row3)  # Use HBoxLayout for true 50-50 split
         grid3.setSpacing(12)
-        
+
         # Left column (50%)
         g_list = self.state.get('google_api_keys') or ([] if not self.state.get('google_api_key') else [self.state.get('google_api_key')])
         self.w_google = KeyList(title='Google API Keys', kind='google', initial=g_list)
         grid3.addWidget(self.w_google, 1)  # stretch factor = 1
-        
+
         # Right column (50%)
         self.w_openai = KeyList(title='OpenAI API Keys', kind='openai', initial=self.state.get('openai_api_keys') or [])
         grid3.addWidget(self.w_openai, 1)  # stretch factor = 1
-        
+
         root.addWidget(row3)
 
-        
+
         # Dòng 4: Download Directory + System Prompts Updater (same row)
         row4 = _QW()
         grid4 = QGridLayout(row4)
         grid4.setHorizontalSpacing(12)
         grid4.setVerticalSpacing(4)
-        
+
         # Left: Download Directory (50% width)
         st = QGroupBox('Thư mục tải về'); _decorate_group(st)
         gs = QGridLayout(st); gs.setVerticalSpacing(6)
@@ -162,34 +162,34 @@ class SettingsPanel(QWidget):
         # Right: System Prompts Updater (50% width)
         prompts_group = QGroupBox('🔄 System Prompts Updater'); _decorate_group(prompts_group)
         gp = QGridLayout(prompts_group); gp.setVerticalSpacing(6)
-        
+
         # Description
         lbl_desc = QLabel('Cập nhật system prompts từ Google Sheets mà không cần khởi động lại ứng dụng')
         lbl_desc.setWordWrap(True)
         lbl_desc.setFont(FONT_LABEL)
         gp.addWidget(lbl_desc, 0, 0, 1, 2)
-        
+
         # Google Sheets URL (read-only)
         self.ed_sheets_url = _line('Google Sheets URL', bold=True)
         self.ed_sheets_url.setText('https://docs.google.com/spreadsheets/d/1ohiL6xOBbjC7La2iUdkjrVjG4IEUnVWhI0fRoarD6P0')
         self.ed_sheets_url.setReadOnly(True)
         gp.addWidget(_lab('URL:'), 1, 0); gp.addWidget(self.ed_sheets_url, 1, 1)
-        
+
         # Update button + Status (same row)
         self.btn_update_prompts = QPushButton('⬇️ Cập nhật System Prompts')
         self.btn_update_prompts.setObjectName('btn_primary')
         self.btn_update_prompts.setMinimumHeight(40)
         self.btn_update_prompts.clicked.connect(self._update_system_prompts)
         gp.addWidget(self.btn_update_prompts, 2, 0, 1, 1)
-        
+
         # Status label
         self.lb_prompts_status = QLabel('')
         self.lb_prompts_status.setFont(FONT_LABEL)
         self.lb_prompts_status.setWordWrap(True)
         gp.addWidget(self.lb_prompts_status, 3, 0, 1, 2)
-        
+
         grid4.addWidget(prompts_group, 0, 1, 1, 1)
-        
+
         root.addWidget(row4)
 
         self.rb_local.toggled.connect(self._toggle_storage_fields)
@@ -255,7 +255,7 @@ class SettingsPanel(QWidget):
         """Update system prompts from Google Sheets with hot reload"""
         import os
         from PyQt5.QtWidgets import QMessageBox
-        
+
         # Get URL from input
         sheet_url = self.ed_sheets_url.text().strip()
         if not sheet_url:
@@ -265,30 +265,30 @@ class SettingsPanel(QWidget):
                 'Vui lòng nhập URL Google Sheets trước khi cập nhật!'
             )
             return
-        
+
         # Show progress
         self.lb_prompts_status.setText('Đang tải dữ liệu từ Google Sheets...')
         self.btn_update_prompts.setEnabled(False)
-        
+
         # Force UI update
         from PyQt5.QtWidgets import QApplication
         QApplication.processEvents()
-        
+
         try:
             from services.prompt_updater import update_prompts_file
-            
+
             # Get path to domain_prompts.py
             services_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'services')
             prompts_file = os.path.join(services_dir, 'domain_prompts.py')
-            
+
             # Update file with custom URL
             success, message = update_prompts_file(prompts_file, sheet_url=sheet_url)
-            
+
             if success:
                 # Hot reload the prompts
                 from services.domain_prompts import reload_prompts
                 reload_success, reload_msg = reload_prompts()
-                
+
                 if reload_success:
                     status_text = message + chr(10) + reload_msg + chr(10) + 'Hot reload thành công!'
                     self.lb_prompts_status.setText(status_text)
@@ -302,11 +302,11 @@ class SettingsPanel(QWidget):
             else:
                 self.lb_prompts_status.setText(message)
                 QMessageBox.critical(self, 'Lỗi', message)
-        
+
         except Exception as e:
             error_msg = 'Lỗi không xác định: ' + str(e)
             self.lb_prompts_status.setText(error_msg)
             QMessageBox.critical(self, 'Lỗi', error_msg)
-        
+
         finally:
             self.btn_update_prompts.setEnabled(True)

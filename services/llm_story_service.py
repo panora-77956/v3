@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import os, json, requests
-from services.core.key_manager import get_key, get_all_keys, refresh
-from services.core.api_key_rotator import APIKeyRotator, APIKeyRotationError
+import json, requests
+from services.core.key_manager import get_key
 
 def _load_keys():
     """Load keys using unified key manager"""
@@ -37,7 +36,7 @@ def _get_style_specific_guidance(style):
     """Get specific guidance based on video style to better match user's idea"""
     # Normalize style once for all checks
     style_normalized = style.lower()
-    
+
     # Use early returns for better performance
     if "vlog" in style_normalized or "cá nhân" in style_normalized:
         return """
@@ -50,7 +49,7 @@ def _get_style_specific_guidance(style):
 - Dialogue: Tự nhiên, có thể ngập ngừng, không cần hoàn hảo
 - Focus: Chia sẻ trải nghiệm, cảm xúc, bài học cá nhân
 """
-    
+
     if "review" in style_normalized or "unboxing" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -62,7 +61,7 @@ def _get_style_specific_guidance(style):
 - Visual: Chuyển cảnh nhanh, zoom vào chi tiết quan trọng
 - Focus: Giá trị thực tế, so sánh, đánh giá trung thực
 """
-    
+
     if "tutorial" in style_normalized or "hướng dẫn" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -74,7 +73,7 @@ def _get_style_specific_guidance(style):
 - Visual: Từng bước rõ ràng, text overlays, arrows/highlights
 - Focus: Dễ hiểu, có thể làm theo, kết quả cụ thể
 """
-    
+
     if "quảng cáo" in style_normalized or "tvc" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -86,7 +85,7 @@ def _get_style_specific_guidance(style):
 - Visual: High-end production, brand colors, lifestyle shots
 - Focus: Emotional connection, brand message, clear CTA
 """
-    
+
     if "music" in style_normalized or "mv" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -98,7 +97,7 @@ def _get_style_specific_guidance(style):
 - Visual: Metaphors, symbolism, artistic interpretation
 - Focus: Mood, emotion, visual storytelling match với lyrics
 """
-    
+
     if "horror" in style_normalized or "kinh dị" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -110,7 +109,7 @@ def _get_style_specific_guidance(style):
 - Visual: Dark lighting, shadows, sudden movements
 - Focus: Tension build-up, fear, suspense, twisted ending
 """
-    
+
     if "sci-fi" in style_normalized or "khoa học" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -122,7 +121,7 @@ def _get_style_specific_guidance(style):
 - Visual: Futuristic design, tech elements, cool color palette
 - Focus: Technology, future society, philosophical questions
 """
-    
+
     if "fantasy" in style_normalized or "phép thuật" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -134,7 +133,7 @@ def _get_style_specific_guidance(style):
 - Visual: Rich colors, magical elements, fantastical creatures
 - Focus: Wonder, magic system, hero's journey, imagination
 """
-    
+
     if "anime" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -146,7 +145,7 @@ def _get_style_specific_guidance(style):
 - Visual: Vibrant colors, exaggerated expressions, dramatic effects
 - Focus: Character emotions, relationships, epic moments
 """
-    
+
     if "tài liệu" in style_normalized or "documentary" in style_normalized or "phóng sự" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -158,7 +157,7 @@ def _get_style_specific_guidance(style):
 - Visual: Real footage, data visualization, expert interviews
 - Focus: Truth, education, insight, real stories
 """
-    
+
     if "sitcom" in style_normalized or "hài" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -170,7 +169,7 @@ def _get_style_specific_guidance(style):
 - Visual: Bright lighting, expressive acting, sight gags
 - Focus: Humor, timing, relatable situations, callbacks
 """
-    
+
     if "phim ngắn" in style_normalized or "short film" in style_normalized:
         return """
 ═══════════════════════════════════════════════════════════════
@@ -182,7 +181,7 @@ def _get_style_specific_guidance(style):
 - Visual: Artistic, symbolic, every shot tells story
 - Focus: Complete story arc, character development, message
 """
-    
+
     # Default: Cinematic for all other styles including "Điện ảnh", "3D/CGI", "Stop-motion", "Quay thực"
     return """
 ═══════════════════════════════════════════════════════════════
@@ -199,10 +198,10 @@ def _get_style_specific_guidance(style):
 def _schema_prompt(idea, style_vi, out_lang, n, per, mode):
     # Get target language display name
     target_language = LANGUAGE_NAMES.get(out_lang, 'Vietnamese (Tiếng Việt)')
-    
+
     # Get style-specific guidance
     style_guidance = _get_style_specific_guidance(style_vi)
-    
+
     # Build language instruction
     language_instruction = f"""
 IMPORTANT LANGUAGE REQUIREMENT:
@@ -210,7 +209,7 @@ IMPORTANT LANGUAGE REQUIREMENT:
 - All scene descriptions should match the cultural context of {target_language}
 - Do NOT mix languages unless specifically requested
 """
-    
+
     # Detect if user provided detailed screenplay vs just idea
     # Indicators: SCENE, ACT, INT./EXT., character profiles, dàn ý, kịch bản, screenplay
     idea_lower = (idea or "").lower()
@@ -219,7 +218,7 @@ IMPORTANT LANGUAGE REQUIREMENT:
         'kịch bản', 'screenplay', 'dàn ý', 'hồ sơ nhân vật',
         'fade in', 'fade out', 'close up', 'cut to'
     ])
-    
+
     # Adjust instructions based on input type
     if has_screenplay_markers:
         input_type_instruction = """
@@ -237,7 +236,7 @@ Mục tiêu: GIỮ NGUYÊN câu chuyện và nhân vật, chỉ tối ưu hóa c
         base_role = f"""
 Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
 Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên."""
-    
+
     base_rules = f"""
 {base_role}
 
@@ -377,7 +376,7 @@ Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài J
 - Prompts PHẢI visual & cinematic (tránh abstract)
 - Mỗi scene có emotion & story beat rõ ràng
 """.strip()
-    
+
     # Adjust input label based on detected type
     input_label = "Kịch bản chi tiết" if has_screenplay_markers else "Ý tưởng thô"
 
@@ -422,29 +421,29 @@ def _call_gemini(prompt, api_key, model="gemini-2.5-flash"):
     from services.core.api_config import gemini_text_endpoint
     from services.core.key_manager import get_all_keys
     import time
-    
+
     # Build key rotation list
     keys = [api_key]
     all_keys = get_all_keys('google')
     keys.extend([k for k in all_keys if k != api_key])
-    
+
     last_error = None
-    
+
     for attempt, key in enumerate(keys[:3]):  # Try up to 3 keys
         try:
             # Build endpoint
             url = gemini_text_endpoint(key) if model == "gemini-2.5-flash" else \
                   f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={key}"
-            
+
             headers = {"Content-Type": "application/json"}
             data = {
                 "contents": [{"role": "user", "parts": [{"text": prompt}]}],
                 "generationConfig": {"temperature": 0.9, "response_mime_type": "application/json"}
             }
-            
+
             # Make request
             r = requests.post(url, headers=headers, json=data, timeout=240)
-            
+
             # Check for 503 specifically
             if r.status_code == 503:
                 last_error = requests.HTTPError(f"503 Service Unavailable (Key attempt {attempt+1})", response=r)
@@ -453,15 +452,15 @@ def _call_gemini(prompt, api_key, model="gemini-2.5-flash"):
                     print(f"[WARN] Gemini 503 error, retrying in {backoff}s with next key...")
                     time.sleep(backoff)
                 continue  # Try next key
-            
+
             # Raise for other HTTP errors
             r.raise_for_status()
-            
+
             # Parse response
             out = r.json()
             txt = out["candidates"][0]["content"]["parts"][0]["text"]
             return json.loads(txt)
-            
+
         except requests.exceptions.HTTPError as e:
             # Only retry 503 errors
             if hasattr(e, 'response') and e.response.status_code == 503:
@@ -474,12 +473,12 @@ def _call_gemini(prompt, api_key, model="gemini-2.5-flash"):
             else:
                 # Other HTTP errors (429, 400, 401, etc.) - raise immediately
                 raise
-                
+
         except Exception as e:
             # Non-HTTP errors - raise immediately
             last_error = e
             raise
-    
+
     # All retries exhausted
     if last_error:
         raise RuntimeError(f"Gemini API failed after {min(3, len(keys))} attempts: {last_error}")
@@ -502,18 +501,18 @@ def _calculate_text_similarity(text1, text2):
     """
     if not text1 or not text2:
         return 0.0
-    
+
     # Normalize: lowercase and split into words
     words1 = set(text1.lower().split())
     words2 = set(text2.lower().split())
-    
+
     if not words1 or not words2:
         return 0.0
-    
+
     # Jaccard similarity: intersection / union
     intersection = len(words1 & words2)
     union = len(words1 | words2)
-    
+
     return intersection / union if union > 0 else 0.0
 
 def _validate_scene_uniqueness(scenes, similarity_threshold=0.8):
@@ -529,28 +528,28 @@ def _validate_scene_uniqueness(scenes, similarity_threshold=0.8):
         List of duplicate pairs found: [(scene1_idx, scene2_idx, similarity), ...]
     """
     duplicates = []
-    
+
     for i in range(len(scenes)):
         for j in range(i + 1, len(scenes)):
             scene1 = scenes[i]
             scene2 = scenes[j]
-            
+
             # Check both Vietnamese and target prompts
             prompt1_vi = scene1.get("prompt_vi", "")
             prompt2_vi = scene2.get("prompt_vi", "")
             prompt1_tgt = scene1.get("prompt_tgt", "")
             prompt2_tgt = scene2.get("prompt_tgt", "")
-            
+
             # Calculate similarity for both language versions
             sim_vi = _calculate_text_similarity(prompt1_vi, prompt2_vi)
             sim_tgt = _calculate_text_similarity(prompt1_tgt, prompt2_tgt)
-            
+
             # Use the higher similarity score
             max_sim = max(sim_vi, sim_tgt)
-            
+
             if max_sim >= similarity_threshold:
                 duplicates.append((i + 1, j + 1, max_sim))  # 1-based indexing for display
-    
+
     return duplicates
 
 def _enforce_character_consistency(scenes, character_bible):
@@ -595,10 +594,10 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
     gk, ok=_load_keys()
     n, per = _n_scenes(duration_seconds)
     mode = _mode_from_duration(duration_seconds)
-    
+
     # Build base prompt
     prompt=_schema_prompt(idea=idea, style_vi=style, out_lang=output_lang, n=n, per=per, mode=mode)
-    
+
     # Prepend expert intro if domain/topic selected
     if domain and topic:
         try:
@@ -610,7 +609,7 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         except Exception as e:
             # Log but don't fail if domain prompt loading fails
             print(f"[WARN] Could not load domain prompt: {e}")
-    
+
     # Call LLM
     if provider.lower().startswith("gemini"):
         key=api_key or gk
@@ -622,7 +621,7 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         # FIXED: Use gpt-4-turbo instead of gpt-5
         res=_call_openai(prompt,key,"gpt-4-turbo")
     if "scenes" not in res: raise RuntimeError("LLM không trả về đúng schema.")
-    
+
     # ISSUE #1 FIX: Validate scene uniqueness
     scenes = res.get("scenes", [])
     duplicates = _validate_scene_uniqueness(scenes, similarity_threshold=0.8)
@@ -630,16 +629,16 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         dup_msg = ", ".join([f"Scene {i} & {j} ({sim*100:.0f}% similar)" for i, j, sim in duplicates])
         print(f"[WARN] Duplicate scenes detected: {dup_msg}")
         # Note: We warn but don't fail - the UI can decide how to handle this
-    
+
     # ISSUE #2 FIX: Enforce character consistency
     character_bible = res.get("character_bible", [])
     if character_bible:
         res["scenes"] = _enforce_character_consistency(scenes, character_bible)
-    
+
     # Store voice configuration in result for consistency
     if voice_config:
         res["voice_config"] = voice_config
-    
+
     # ép durations
     for i,d in enumerate(per):
         if i < len(res["scenes"]): res["scenes"][i]["duration"]=int(d)
@@ -659,12 +658,12 @@ def generate_social_media(script_data, provider='Gemini 2.5', api_key=None):
         Dictionary with 3 social media versions (casual, professional, funny)
     """
     gk, ok = _load_keys()
-    
+
     # Extract key elements from script
     title = script_data.get("title_vi") or script_data.get("title_tgt", "")
     outline = script_data.get("outline_vi") or script_data.get("outline_tgt", "")
     screenplay = script_data.get("screenplay_vi") or script_data.get("screenplay_tgt", "")
-    
+
     # Build prompt
     prompt = f"""Bạn là chuyên gia Social Media Marketing. Dựa trên kịch bản video sau, hãy tạo 3 phiên bản nội dung mạng xã hội với các tone khác nhau.
 
@@ -713,7 +712,7 @@ Trả về JSON với format:
   }}
 }}
 """
-    
+
     # Call LLM
     if provider.lower().startswith("gemini"):
         key = api_key or gk
@@ -725,7 +724,7 @@ Trả về JSON với format:
         if not key:
             raise RuntimeError("Chưa cấu hình OpenAI API Key cho GPT-4 Turbo.")
         res = _call_openai(prompt, key, "gpt-4-turbo")
-    
+
     return res
 
 
@@ -742,19 +741,19 @@ def generate_thumbnail_design(script_data, provider='Gemini 2.5', api_key=None):
         Dictionary with thumbnail design specifications
     """
     gk, ok = _load_keys()
-    
+
     # Extract key elements from script
     title = script_data.get("title_vi") or script_data.get("title_tgt", "")
     outline = script_data.get("outline_vi") or script_data.get("outline_tgt", "")
     character_bible = script_data.get("character_bible", [])
-    
+
     # Build character summary
     char_summary = ""
     if character_bible:
         char_summary = "Nhân vật chính:\n"
         for char in character_bible[:3]:  # Top 3 characters
             char_summary += f"- {char.get('name', 'Unknown')}: {char.get('visual_identity', 'N/A')}\n"
-    
+
     # Build prompt
     prompt = f"""Bạn là chuyên gia Thiết kế Thumbnail cho YouTube/TikTok. Dựa trên kịch bản video sau, hãy tạo specifications chi tiết cho thumbnail.
 
@@ -806,7 +805,7 @@ Trả về JSON với format:
   "style_guide": "Phong cách tổng thể (ví dụ: Bold and dramatic with high contrast...)"
 }}
 """
-    
+
     # Call LLM
     if provider.lower().startswith("gemini"):
         key = api_key or gk
@@ -818,5 +817,5 @@ Trả về JSON với format:
         if not key:
             raise RuntimeError("Chưa cấu hình OpenAI API Key cho GPT-4 Turbo.")
         res = _call_openai(prompt, key, "gpt-4-turbo")
-    
+
     return res

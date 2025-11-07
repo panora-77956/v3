@@ -22,7 +22,7 @@ class ErrorDisplayWidget(QWidget):
     - Configurable size and layout
     - Optional detailed message
     """
-    
+
     def __init__(
         self,
         title: str,
@@ -47,32 +47,32 @@ class ErrorDisplayWidget(QWidget):
         self.icon_type = icon_type
         self.icon_size = icon_size
         self.compact = compact
-        
+
         self._setup_ui(title, message)
-    
+
     def _setup_ui(self, title: str, message: str):
         """Setup the UI components"""
         if self.compact:
             self._setup_compact_layout(title, message)
         else:
             self._setup_standard_layout(title, message)
-    
+
     def _setup_standard_layout(self, title: str, message: str):
         """Setup standard vertical layout"""
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignCenter)
-        
+
         # Icon
         icon_label = self._create_icon_label()
         layout.addWidget(icon_label)
-        
+
         # Title
         title_label = QLabel(title)
         title_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
         title_label.setAlignment(Qt.AlignCenter)
         title_label.setStyleSheet(self._get_title_color())
         layout.addWidget(title_label)
-        
+
         # Message
         if message:
             msg_label = QLabel(message)
@@ -81,24 +81,24 @@ class ErrorDisplayWidget(QWidget):
             msg_label.setWordWrap(True)
             msg_label.setStyleSheet("color: #666; margin-top: 8px;")
             layout.addWidget(msg_label)
-    
+
     def _setup_compact_layout(self, title: str, message: str):
         """Setup compact horizontal layout"""
         layout = QHBoxLayout(self)
-        
+
         # Icon
         icon_label = self._create_icon_label()
         layout.addWidget(icon_label)
-        
+
         # Text container
         text_layout = QVBoxLayout()
-        
+
         # Title
         title_label = QLabel(title)
         title_label.setFont(QFont("Segoe UI", 12, QFont.Bold))
         title_label.setStyleSheet(self._get_title_color())
         text_layout.addWidget(title_label)
-        
+
         # Message
         if message:
             msg_label = QLabel(message)
@@ -106,21 +106,21 @@ class ErrorDisplayWidget(QWidget):
             msg_label.setWordWrap(True)
             msg_label.setStyleSheet("color: #666;")
             text_layout.addWidget(msg_label)
-        
+
         layout.addLayout(text_layout)
         layout.addStretch()
-    
+
     def _create_icon_label(self) -> QLabel:
         """Create icon label with image or emoji"""
         icon_label = QLabel()
         icon_label.setAlignment(Qt.AlignCenter)
-        
+
         try:
             from utils.icon_utils import load_icon_pixmap, EMOJI_FALLBACKS
-            
+
             # Try to load icon image
             pixmap = load_icon_pixmap(self.icon_type, size=(self.icon_size, self.icon_size))
-            
+
             if pixmap:
                 icon_label.setPixmap(pixmap)
             else:
@@ -141,9 +141,9 @@ class ErrorDisplayWidget(QWidget):
             icon_label.setText(emoji)
             emoji_size = self.icon_size // 2 if self.compact else self.icon_size // 1.5
             icon_label.setFont(QFont("Segoe UI", int(emoji_size)))
-        
+
         return icon_label
-    
+
     def _get_title_color(self) -> str:
         """Get color style for title based on icon type"""
         color_map = {
@@ -154,7 +154,7 @@ class ErrorDisplayWidget(QWidget):
         }
         color = color_map.get(self.icon_type, '#666')
         return f"color: {color};"
-    
+
     def update_message(self, title: str = None, message: str = None):
         """
         Update the displayed message
@@ -172,7 +172,7 @@ class ErrorDisplayWidget(QWidget):
                 child = self.layout().takeAt(0)
                 if child.widget():
                     child.widget().setParent(None)
-            
+
             # Rebuild with new content
             new_title = title if title else ""
             new_message = message if message else ""

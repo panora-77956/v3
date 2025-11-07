@@ -70,17 +70,17 @@ def load_icon_pixmap(icon_type: str, size: Optional[Tuple[int, int]] = None) -> 
     """
     if icon_type not in ICON_FILES:
         return None
-    
+
     icon_path = get_resource_path(ICON_FILES[icon_type])
-    
+
     if not os.path.exists(icon_path):
         return None
-    
+
     pixmap = QPixmap(icon_path)
-    
+
     if pixmap.isNull():
         return None
-    
+
     # Scale if size is specified
     if size:
         width, height = size
@@ -89,7 +89,7 @@ def load_icon_pixmap(icon_type: str, size: Optional[Tuple[int, int]] = None) -> 
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation
         )
-    
+
     return pixmap
 
 
@@ -121,12 +121,12 @@ def get_icon_or_emoji(icon_type: str, prefer_image: bool = True) -> Tuple[Option
         Tuple of (QPixmap or None, emoji string)
     """
     emoji = EMOJI_FALLBACKS.get(icon_type, '•')
-    
+
     if prefer_image:
         pixmap = load_icon_pixmap(icon_type)
         if pixmap:
             return pixmap, emoji
-    
+
     return None, emoji
 
 
@@ -183,13 +183,13 @@ if __name__ == '__main__':
     """Test icon loading"""
     print("Icon Utilities Test")
     print("=" * 50)
-    
+
     print(f"\nIcon support available: {has_icon_support()}")
     print("\nIcon status:")
     for icon_type, available in get_icon_status().items():
         status = "✓ Available" if available else "✗ Missing"
         print(f"  {icon_type}: {status}")
-    
+
     print("\nTesting icon loading:")
     for icon_type in [IconType.ERROR, IconType.WARNING, IconType.SUCCESS, IconType.INFO]:
         pixmap, emoji = get_icon_or_emoji(icon_type)

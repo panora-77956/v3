@@ -93,10 +93,10 @@ def build_expert_intro(domain, topic, language="vi"):
         Formatted expert introduction text
     """
     system_prompt = get_system_prompt(domain, topic)
-    
+
     if not system_prompt:
         return ""
-    
+
     if language == "vi":
         intro = f"""Tôi là chuyên gia trong lĩnh vực {domain}, chuyên về {topic}. 
 Tôi đã nhận ý tưởng từ bạn và sẽ biến nó thành kịch bản và câu chuyện theo yêu cầu của bạn. 
@@ -111,7 +111,7 @@ I have received your idea and will turn it into a script and story according to 
 {system_prompt}
 
 Script as follows:"""
-    
+
     return intro
 
 
@@ -138,16 +138,16 @@ def reload_prompts():
     try:
         import importlib
         import sys
-        
+
         # Get the current module
         current_module = sys.modules.get(__name__)
-        
+
         if current_module:
             # Reload the module
             importlib.reload(current_module)
             return True, "Đã reload prompts thành công!"
         else:
             return False, "Không tìm thấy module để reload"
-            
+
     except Exception as e:
         return False, f"Lỗi khi reload: {str(e)}"

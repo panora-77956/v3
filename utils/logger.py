@@ -1,6 +1,5 @@
 
 from PyQt5.QtWidgets import QWidget, QVBoxLayout, QTextEdit
-from PyQt5.QtCore import Qt
 
 class Console(QWidget):
     def __init__(self, parent=None):

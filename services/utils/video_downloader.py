@@ -4,7 +4,7 @@ import os, requests
 class VideoDownloader:
     def __init__(self, log_callback=None):
         self.log = log_callback or print
-    
+
     def download(self, url: str, output_path: str, timeout=300) -> str:
         self.log(f"[Download] {os.path.basename(output_path)}")
         with requests.get(url, stream=True, timeout=timeout, allow_redirects=True) as r:
