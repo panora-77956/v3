@@ -527,7 +527,10 @@ class SettingsPanelV3Compact(QWidget):
         # Tokens
         layout.addWidget(_label("OAuth Flow Tokens from labs.google.com (one per line):"))
         ed_tokens = QTextEdit()
-        ed_tokens.setPlaceholderText("Paste OAuth Flow Tokens from labs.google.com here, one per line\nNOTE: These are NOT API keys")
+        ed_tokens.setPlaceholderText(
+            "Paste OAuth Flow Tokens from labs.google.com here, one per line\n"
+            "NOTE: These are NOT API keys"
+        )
         ed_tokens.setMaximumHeight(120)
         ed_tokens.setStyleSheet("""
             QTextEdit {
