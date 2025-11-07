@@ -19,7 +19,7 @@ class InputValidator:
     """Validates various types of user inputs"""
     
     # Common patterns
-    SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-. ]+$')
+    SAFE_FILENAME_PATTERN = re.compile(r'^[a-zA-Z0-9_. -]+$')
     EMAIL_PATTERN = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
     URL_PATTERN = re.compile(
         r'^https?://'  # http:// or https://
@@ -294,15 +294,16 @@ class InputSanitizer:
         Raises:
             ValidationError: If path contains directory traversal
         """
-        # Normalize path
+        # Normalize and resolve path (resolves symlinks and relative paths)
         normalized = os.path.normpath(path)
+        resolved = os.path.realpath(normalized)
         
-        # Check for directory traversal
+        # Check for directory traversal using resolved path
         if '..' in normalized.split(os.sep):
             raise ValidationError("Path contains directory traversal (..) which is not allowed")
         
         # Check if absolute when not allowed
-        if not allow_absolute and os.path.isabs(normalized):
+        if not allow_absolute and os.path.isabs(resolved):
             raise ValidationError("Absolute paths are not allowed")
         
         return normalized

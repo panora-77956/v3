@@ -172,7 +172,8 @@ class DiskCache:
     def _get_cache_path(self, key: str) -> Path:
         """Get cache file path for key"""
         # Hash the key to create a valid filename
-        key_hash = hashlib.md5(key.encode()).hexdigest()
+        # Using SHA-256 for better security than MD5
+        key_hash = hashlib.sha256(key.encode()).hexdigest()
         return self.cache_dir / f"{key_hash}.cache"
     
     def get(self, key: str) -> Optional[Any]:
@@ -204,7 +205,9 @@ class DiskCache:
             with open(cache_path, 'wb') as f:
                 pickle.dump(value, f)
         except (pickle.PickleError, IOError) as e:
-            print(f"[Warning] Could not write to cache: {e}")
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Could not write to cache: {e}")
     
     def clear(self):
         """Clear all cache files"""
