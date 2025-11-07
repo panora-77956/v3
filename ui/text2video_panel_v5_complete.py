@@ -166,7 +166,8 @@ class StoryboardView(QWidget):
                 first_video = list(vids.values())[0]
                 video_path = first_video.get('path', '')
                 if video_path and os.path.exists(video_path):
-                    thumb_label.mousePressEvent = lambda e, path=video_path: self.parent()._play_video(path)
+                    # BUG FIX #2: Use main_panel reference instead of parent() to avoid AttributeError
+                    thumb_label.mousePressEvent = lambda e, path=video_path: self.main_panel._play_video(path)
         else:
             thumb_label.setText("🖼️\nChưa tạo ảnh")
         
