@@ -62,7 +62,7 @@ pip install -r requirements.txt
 
 ```json
 {
-  "tokens": ["your-google-veo-token-1", "your-google-veo-token-2"],
+  "tokens": ["your-google-labs-oauth-token-1", "your-google-labs-oauth-token-2"],
   "google_keys": ["your-gemini-api-key"],
   "labs_tokens": ["your-google-labs-bearer-token"],
   "elevenlabs_keys": ["your-elevenlabs-key"],

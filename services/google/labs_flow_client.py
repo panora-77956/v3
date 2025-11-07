@@ -151,7 +151,7 @@ class LabsFlowClient:
     Google Labs Flow Client with multi-token rotation support
     
     Features:
-    - Automatic token rotation across multiple API keys for load balancing
+    - Automatic token rotation across multiple OAuth tokens for load balancing
     - Robust error handling with retries
     - Supports both I2V (image-to-video) and T2V (text-to-video) generation
     """
