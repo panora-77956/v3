@@ -120,6 +120,7 @@ python3 main_image2video.py
 ### User Guides
 - 🇬🇧 [English Guide](CODE_IMPROVEMENTS_GUIDE.md) - Detailed improvement guide
 - 🇻🇳 [Hướng Dẫn Tiếng Việt](HUONG_DAN_CAI_THIEN_VI.md) - Vietnamese guide
+- 🇻🇳 [Báo Cáo Cải Tiến](BAO_CAO_CAI_TIEN_VI.md) - **Vietnamese optimization report (v7.2.1)**
 - 🔒 [Security & Optimizations](SECURITY_OPTIMIZATIONS.md) - Security updates & performance
 
 ### Developer Docs
