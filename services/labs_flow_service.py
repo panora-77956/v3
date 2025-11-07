@@ -23,6 +23,12 @@ except Exception:  # pragma: no cover
 
 DEFAULT_PROJECT_ID = "87b19267-13d6-49cd-a7ed-db19a90c9339"
 
+# Prompt length limits for video generation API
+MAX_PROMPT_LENGTH = 5000  # Maximum total prompt length
+MAX_PLAIN_STRING_LENGTH = 4000  # Maximum length for plain string prompts
+MAX_CHARACTER_DETAILS_LENGTH = 1500  # Maximum length for character details when truncating
+MAX_SCENE_DESCRIPTION_LENGTH = 3000  # Maximum length for scene description when truncating
+
 def _headers(bearer: str) -> dict:
     return {
         "authorization": f"Bearer {bearer}",
@@ -83,19 +89,19 @@ def _trim_prompt_text(prompt_text: Any)->str:
     if isinstance(prompt_text, str):
         s=prompt_text.strip()
         # If it's a reasonable length plain string, use it as-is
-        if len(s)<=4000: return s
+        if len(s)<=MAX_PLAIN_STRING_LENGTH: return s
         # Try to parse as JSON
         try:
             obj=json.loads(s)
         except Exception:
             # Not JSON, just a long string - truncate intelligently at sentence boundary
-            if len(s) <= 5000:
+            if len(s) <= MAX_PROMPT_LENGTH:
                 return s
-            # Find last period before 4000 chars
-            truncate_at = s.rfind('.', 0, 4000)
+            # Find last period before MAX_PLAIN_STRING_LENGTH chars
+            truncate_at = s.rfind('.', 0, MAX_PLAIN_STRING_LENGTH)
             if truncate_at > 3000:
                 return s[:truncate_at+1]
-            return s[:4000]
+            return s[:MAX_PLAIN_STRING_LENGTH]
     else:
         obj=prompt_text
     
@@ -168,15 +174,15 @@ def _trim_prompt_text(prompt_text: Any)->str:
             # Combine all parts
             text = "\n\n".join([p for p in parts if p])
             
-            # If still too long (>5000 chars), prioritize scene description
-            if len(text) > 5000:
+            # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
+            if len(text) > MAX_PROMPT_LENGTH:
                 # Keep: character_details + location_lock + scene_description
                 priority_parts = []
                 if obj.get("character_details"):
                     # Truncate character_details if very long
                     char_details = str(obj["character_details"])
-                    if len(char_details) > 1500:
-                        char_details = char_details[:1500] + "..."
+                    if len(char_details) > MAX_CHARACTER_DETAILS_LENGTH:
+                        char_details = char_details[:MAX_CHARACTER_DETAILS_LENGTH] + "..."
                     priority_parts.append(char_details)
                 
                 if hard_locks and hard_locks.get("location"):
@@ -184,8 +190,8 @@ def _trim_prompt_text(prompt_text: Any)->str:
                 
                 if scene_description:
                     # Preserve full scene description, truncate if needed
-                    if len(scene_description) > 3000:
-                        scene_description = scene_description[:3000]
+                    if len(scene_description) > MAX_SCENE_DESCRIPTION_LENGTH:
+                        scene_description = scene_description[:MAX_SCENE_DESCRIPTION_LENGTH]
                     priority_parts.append(scene_description)
                 
                 text = "\n\n".join(priority_parts)
@@ -211,16 +217,16 @@ def _trim_prompt_text(prompt_text: Any)->str:
     # Fallback: convert to JSON string and return (with reasonable limit)
     try:
         result = json.dumps(obj, ensure_ascii=False)
-        if len(result) <= 5000:
+        if len(result) <= MAX_PROMPT_LENGTH:
             return result
         # If too long, try to extract just the essential fields
         if isinstance(obj, dict):
             essential = {k: v for k, v in obj.items() if k in ["key_action", "character_details", "setting_details"]}
             if essential:
                 return json.dumps(essential, ensure_ascii=False)
-        return result[:5000]
+        return result[:MAX_PROMPT_LENGTH]
     except Exception:
-        return str(obj)[:5000]
+        return str(obj)[:MAX_PROMPT_LENGTH]
 
 class LabsClient:
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
