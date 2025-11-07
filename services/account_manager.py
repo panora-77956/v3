@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-Account Manager - Multi-account support for Google Labs API
+Account Manager - Multi-account support for Google Labs Flow
 Provides round-robin load balancing across multiple Google Labs accounts
+Each account uses OAuth Flow Tokens from labs.google.com
 """
 
 from typing import List, Dict, Optional, Tuple
@@ -9,7 +10,7 @@ from threading import Lock
 
 
 class LabsAccount:
-    """Represents a single Google Labs account with project ID and tokens"""
+    """Represents a single Google Labs account with project ID and OAuth Flow tokens"""
 
     def __init__(self, name: str, project_id: str, tokens: List[str], enabled: bool = True):
         """
@@ -18,7 +19,7 @@ class LabsAccount:
         Args:
             name: Account display name
             project_id: Google Labs Project ID
-            tokens: List of OAuth tokens for this account
+            tokens: List of OAuth Flow tokens for this account from labs.google.com
             enabled: Whether this account is active
         """
         self.name = name

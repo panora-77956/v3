@@ -215,7 +215,7 @@ class SettingsPanelV3Compact(QWidget):
         accordion_grid.setSpacing(8)
 
         # Column 1
-        google_section = AccordionSection("Google API Keys")
+        google_section = AccordionSection("Google API Keys (Gemini)")
         g_list = self.state.get('google_api_keys') or []
         self.w_google = KeyListV2(kind='google', initial=g_list)
         google_section.add_content_widget(self.w_google)
@@ -243,11 +243,12 @@ class SettingsPanelV3Compact(QWidget):
         accordion_grid.addWidget(openai_section, 1, 1)
 
         # === MULTI-ACCOUNT MANAGEMENT (ISSUE #4) - Now as AccordionSection ===
-        multi_acc_section = AccordionSection("🔑 Multi-Account Management")
+        multi_acc_section = AccordionSection("🔑 Google Labs Flow Tokens (Video Generation)")
 
         # Add hint
         hint2 = QLabel(
-            "💡 Tip: Use multiple accounts to avoid rate limits and increase processing speed!\n"
+            "💡 These are OAuth tokens from labs.google.com (NOT API keys).\n"
+            "Use multiple accounts to avoid rate limits and increase processing speed!\n"
             "Each account will process scenes in parallel."
         )
         hint2.setFont(FONT_SMALL)
@@ -267,6 +268,7 @@ class SettingsPanelV3Compact(QWidget):
         self.accounts_table.setAlternatingRowColors(True)
         self.accounts_table.setToolTip(
             "Add multiple Google Labs accounts here.\n"
+            "These use OAuth Flow Tokens from labs.google.com, not API keys.\n"
             "Jobs will be distributed across accounts automatically."
         )
         self.accounts_table.setStyleSheet("""
@@ -504,7 +506,7 @@ class SettingsPanelV3Compact(QWidget):
     def _add_account(self):
         """Add a new account via dialog"""
         dialog = QDialog(self)
-        dialog.setWindowTitle("Add Google Labs Account")
+        dialog.setWindowTitle("Add Google Labs Account (OAuth Flow Tokens)")
         dialog.setMinimumWidth(500)
 
         layout = QVBoxLayout(dialog)
@@ -523,9 +525,9 @@ class SettingsPanelV3Compact(QWidget):
         layout.addWidget(ed_project_id)
 
         # Tokens
-        layout.addWidget(_label("OAuth Tokens (one per line):"))
+        layout.addWidget(_label("OAuth Flow Tokens from labs.google.com (one per line):"))
         ed_tokens = QTextEdit()
-        ed_tokens.setPlaceholderText("Paste OAuth tokens here, one per line")
+        ed_tokens.setPlaceholderText("Paste OAuth Flow Tokens from labs.google.com here, one per line\nNOTE: These are NOT API keys")
         ed_tokens.setMaximumHeight(120)
         ed_tokens.setStyleSheet("""
             QTextEdit {
@@ -577,7 +579,7 @@ class SettingsPanelV3Compact(QWidget):
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("Edit Google Labs Account")
+        dialog.setWindowTitle("Edit Google Labs Account (OAuth Flow Tokens)")
         dialog.setMinimumWidth(500)
 
         layout = QVBoxLayout(dialog)
@@ -596,7 +598,7 @@ class SettingsPanelV3Compact(QWidget):
         layout.addWidget(ed_project_id)
 
         # Tokens
-        layout.addWidget(_label("OAuth Tokens (one per line):"))
+        layout.addWidget(_label("OAuth Flow Tokens from labs.google.com (one per line):"))
         ed_tokens = QTextEdit()
         ed_tokens.setPlainText('\n'.join(account.tokens))
         ed_tokens.setMaximumHeight(120)
