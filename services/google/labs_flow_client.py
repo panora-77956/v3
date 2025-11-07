@@ -1,5 +1,5 @@
 import base64, mimetypes, json, time, requests, re
-from typing import List, Dict, Optional, Tuple, Callable, Any
+from typing import List, Dict, Optional, Tuple, Callable, Any, Union
 
 
 # Optional default_project_id from user config (non-breaking)
@@ -70,20 +70,22 @@ def _normalize_status(item: dict) -> str:
     if s in ("MEDIA_GENERATION_STATUS_FAILED","FAILED","ERROR"): return "FAILED"
     return "PROCESSING"
 
-def _trim_prompt_text(prompt_text: Any)->str:
+def _trim_prompt_text(prompt_text: Any) -> Union[str, Dict]:
     """
-    Extract and build the actual text prompt for video generation from structured prompt data.
+    Prepare prompt for video generation from structured prompt data.
     
     For new format (with localization, key_action, character_details):
-    - Extracts the actual scene description from key_action or localization.{lang}.prompt
-    - Includes critical consistency information (character_details, hard_locks)
-    - Builds a comprehensive text prompt suitable for video generation
+    - Returns the full JSON structure to preserve all metadata
+    - Google Labs Flow API accepts JSON structure in textInput.prompt
     
     For old format (with Objective, Persona, Task_Instructions):
-    - Falls back to legacy extraction logic
+    - Converts to text string for backward compatibility
     
     For plain strings:
     - Returns as-is if under limit, otherwise intelligently truncates
+    
+    Returns:
+        Union[str, Dict]: Either the original dict structure or a text string
     """
     # Handle string input
     if isinstance(prompt_text, str):
@@ -108,95 +110,11 @@ def _trim_prompt_text(prompt_text: Any)->str:
     # Handle dictionary/JSON input
     if isinstance(obj, dict):
         # NEW FORMAT: Check for modern schema with localization, key_action, character_details
+        # Google Labs Flow API accepts JSON structure, so return the dict directly
         if "key_action" in obj or "localization" in obj or "character_details" in obj:
-            parts = []
-            
-            # 1. Character consistency (CRITICAL for maintaining same character across scenes)
-            if obj.get("character_details"):
-                parts.append(str(obj["character_details"]))
-            
-            # 2. Location/setting consistency (CRITICAL for maintaining same location)
-            hard_locks = obj.get("hard_locks", {})
-            if isinstance(hard_locks, dict):
-                location_lock = hard_locks.get("location")
-                if location_lock:
-                    parts.append(str(location_lock))
-                # Add identity lock if not already in character_details
-                identity_lock = hard_locks.get("identity")
-                if identity_lock and "character_details" not in obj:
-                    parts.append(str(identity_lock))
-            
-            # 3. Setting details
-            if obj.get("setting_details"):
-                parts.append(str(obj["setting_details"]))
-            
-            # 4. Main scene description - try localization first, then key_action
-            scene_description = ""
-            
-            # Try to get localized prompt (preferred)
-            localization = obj.get("localization", {})
-            if isinstance(localization, dict):
-                # Try to find the best language match
-                # Priority: vi (Vietnamese) > en (English) > first available
-                for lang in ["vi", "en"]:
-                    if lang in localization:
-                        lang_data = localization[lang]
-                        if isinstance(lang_data, dict) and "prompt" in lang_data:
-                            scene_description = str(lang_data["prompt"])
-                            break
-                
-                # If still no description, use first available language
-                if not scene_description:
-                    for lang_data in localization.values():
-                        if isinstance(lang_data, dict) and "prompt" in lang_data:
-                            scene_description = str(lang_data["prompt"])
-                            break
-            
-            # Fallback to key_action if no localized prompt found
-            if not scene_description and obj.get("key_action"):
-                scene_description = str(obj["key_action"])
-            
-            if scene_description:
-                parts.append(scene_description)
-            
-            # 5. Camera direction hints (keep it brief)
-            camera_dir = obj.get("camera_direction", [])
-            if isinstance(camera_dir, list) and camera_dir:
-                # Just include the first and last camera hints for brevity
-                try:
-                    first_shot = camera_dir[0].get("shot", "") if isinstance(camera_dir[0], dict) else ""
-                    last_shot = camera_dir[-1].get("shot", "") if isinstance(camera_dir[-1], dict) else ""
-                    if first_shot or last_shot:
-                        parts.append(f"Camera: {first_shot}; End: {last_shot}")
-                except (IndexError, AttributeError):
-                    pass
-            
-            # Combine all parts
-            text = "\n\n".join([p for p in parts if p])
-            
-            # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
-            if len(text) > MAX_PROMPT_LENGTH:
-                # Keep: character_details + location_lock + scene_description
-                priority_parts = []
-                if obj.get("character_details"):
-                    # Truncate character_details if very long
-                    char_details = str(obj["character_details"])
-                    if len(char_details) > MAX_CHARACTER_DETAILS_LENGTH:
-                        char_details = char_details[:MAX_CHARACTER_DETAILS_LENGTH] + "..."
-                    priority_parts.append(char_details)
-                
-                if hard_locks and hard_locks.get("location"):
-                    priority_parts.append(str(hard_locks["location"]))
-                
-                if scene_description:
-                    # Preserve full scene description, truncate if needed
-                    if len(scene_description) > MAX_SCENE_DESCRIPTION_LENGTH:
-                        scene_description = scene_description[:MAX_SCENE_DESCRIPTION_LENGTH]
-                    priority_parts.append(scene_description)
-                
-                text = "\n\n".join(priority_parts)
-            
-            return text
+            # Return the full JSON structure to preserve all metadata
+            # This ensures saved prompt matches sent prompt
+            return obj
         
         # OLD FORMAT: Legacy extraction for backward compatibility
         parts=[]

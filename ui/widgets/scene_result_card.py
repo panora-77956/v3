@@ -83,10 +83,18 @@ class SceneResultCard(QFrame):
         lbl_title.setStyleSheet("color: #1976D2;")
         content_layout.addWidget(lbl_title)
 
-        # Description - Issue 5d: Set font size to 13px
-        desc_text = self.scene_data.get('description', '') or self.scene_data.get('desc', '')
-        if desc_text and len(desc_text) > 80:
-            desc_text = desc_text[:80] + "..."
+        # Description - Display full scene description (no truncation)
+        # Priority order:
+        #   1. prompt_video: Contains the complete structured video generation prompt
+        #   2. description: General description field
+        #   3. desc: Alternate description field (backward compatibility)
+        desc_text = self.scene_data.get('prompt_video', '') or self.scene_data.get('description', '') or self.scene_data.get('desc', '')
+        
+        # If the description is very long (>500 chars), show first 500 chars with ellipsis
+        # This allows full scene descriptions to be visible while preventing UI overflow
+        if desc_text and len(desc_text) > 500:
+            desc_text = desc_text[:500] + "..."
+        
         lbl_desc = QLabel(desc_text or "Không có mô tả")
         lbl_desc.setWordWrap(True)
         lbl_desc.setFont(QFont("Segoe UI", 13))
