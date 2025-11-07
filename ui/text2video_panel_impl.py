@@ -453,6 +453,56 @@ class _Worker(QObject):
         self.should_stop = False  # PR#4: Add stop flag
         self.video_downloader = VideoDownloader(log_callback=lambda msg: self.log.emit(msg))
 
+    def _handle_labs_event(self, event, log_func):
+        """
+        Handle diagnostic events from LabsClient.
+        
+        Args:
+            event: Event dict from LabsClient with structure:
+                   {"kind": str, ...event-specific fields...}
+                   Common event kinds: video_generator_info, api_call_info, 
+                   trying_model, model_success, model_failed, operations_result,
+                   start_one_result, http_other_err
+            log_func: Callable[[str], None] - Logging function to use.
+                     Takes a formatted log message string.
+                     Examples: self.log.emit or lambda msg: queue.put(("log", msg))
+        """
+        kind = event.get("kind", "")
+        if kind == "video_generator_info":
+            gen_type = event.get("generator_type", "Unknown")
+            model = event.get("model_key", "")
+            aspect = event.get("aspect_ratio", "")
+            log_func(f"[INFO] Video Generator: {gen_type} | Model: {model} | Aspect: {aspect}")
+        elif kind == "api_call_info":
+            endpoint = event.get("endpoint", "")
+            endpoint_type = event.get("endpoint_type", "")
+            num_req = event.get("num_requests", 0)
+            log_func(f"[INFO] API Call: {endpoint_type} endpoint | {num_req} request(s)")
+            log_func(f"[DEBUG] Endpoint URL: {endpoint}")
+        elif kind == "trying_model":
+            model = event.get("model_key", "")
+            log_func(f"[DEBUG] Trying model: {model}")
+        elif kind == "model_success":
+            model = event.get("model_key", "")
+            log_func(f"[DEBUG] Model {model} succeeded")
+        elif kind == "model_failed":
+            model = event.get("model_key", "")
+            error = event.get("error", "")
+            log_func(f"[WARN] Model {model} failed: {error}")
+        elif kind == "operations_result":
+            num_ops = event.get("num_operations", 0)
+            has_key = event.get("has_operations_key", False)
+            log_func(f"[DEBUG] API returned {num_ops} operations (has_operations_key={has_key})")
+        elif kind == "start_one_result":
+            count = event.get("operation_count", 0)
+            requested = event.get("requested_copies", 0)
+            log_func(f"[INFO] Video generation: {count}/{requested} operations created")
+        elif kind == "http_other_err":
+            code = event.get("code", "")
+            detail = event.get("detail", "")
+            log_func(f"[ERROR] HTTP {code}: {detail}")
+
+
     def run(self):
         try:
             if self.task == "script":
@@ -592,6 +642,10 @@ class _Worker(QObject):
         jobs = []
         # Cache for LabsClient instances by project_id to avoid redundant creation
         client_cache = {}
+        
+        # Event handler for diagnostic logging (uses helper method)
+        def on_labs_event(event):
+            self._handle_labs_event(event, self.log.emit)
 
         # PR#5: Batch generation - make one call per scene with copies parameter (not N calls)
         for scene_idx, scene in enumerate(p["scenes"], start=1):
@@ -600,7 +654,7 @@ class _Worker(QObject):
 
             # Create or reuse client for this project_id
             if project_id not in client_cache:
-                client_cache[project_id] = LabsClient(tokens, on_event=None)
+                client_cache[project_id] = LabsClient(tokens, on_event=on_labs_event)
             client = client_cache[project_id]
 
             # Single API call with copies parameter (instead of N calls)
@@ -980,8 +1034,15 @@ class _Worker(QObject):
     def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
         """Process a batch of scenes in a separate thread"""
         try:
-            # Create client for this account
-            client = LabsClient(account.tokens, on_event=None)
+            # Create event handler for diagnostic logging (uses helper method)
+            def on_labs_event(event):
+                # Wrap log function to put messages in queue
+                def log_to_queue(msg):
+                    results_queue.put(("log", msg))
+                self._handle_labs_event(event, log_to_queue)
+            
+            # Create client for this account with event handler
+            client = LabsClient(account.tokens, on_event=on_labs_event)
 
             copies = p["copies"]
             model_key = p.get("model_key", "")

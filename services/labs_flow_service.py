@@ -327,6 +327,11 @@ class LabsClient:
         """Start a scene with robust fallbacks: delay-after-upload, model ladder (I2V vs T2V), reupload-on-400, per-copy fallback, prompt trimming."""
         copies=max(1,int(copies)); base_seed=int(job.get("seed",0)) if str(job.get("seed","")).isdigit() else 0
         mid=job.get("media_id")
+        
+        # Log which video generator will be used
+        generator_type = "Image-to-Video (I2V)" if mid else "Text-to-Video (T2V)"
+        self._emit("video_generator_info", generator_type=generator_type, has_start_image=bool(mid), 
+                   model_key=model_key, aspect_ratio=aspect_ratio, copies=copies, project_id=project_id)
 
         # Give backend a moment to index the uploaded image (avoids 400/500 immediately after upload)
         time.sleep(1.0)
@@ -374,6 +379,9 @@ class LabsClient:
 
         def _try(body):
             url=I2V_URL if mid else T2V_URL
+            # Log the endpoint being called
+            self._emit("api_call_info", endpoint=url, endpoint_type="I2V" if mid else "T2V", 
+                      request_body_keys=list(body.keys()), num_requests=len(body.get("requests", [])))
             return self._post(url, body) or {}
 
         def _is_invalid(e: Exception)->bool:
@@ -384,10 +392,14 @@ class LabsClient:
         data=None; last_err=None
         for mkey in models:
             try:
+                self._emit("trying_model", model_key=mkey, attempt="batch")
                 data=_try(_make_body(mkey, mid, copies))
-                last_err=None; break
+                last_err=None
+                self._emit("model_success", model_key=mkey, has_data=data is not None)
+                break
             except Exception as e:
                 last_err=e
+                self._emit("model_failed", model_key=mkey, error=str(e)[:200])
                 if not _is_invalid(e): break
 
         # 2) If invalid and have image -> reupload once then retry ladder (I2V only)
@@ -421,11 +433,16 @@ class LabsClient:
 
         # 4) Batch success
         ops=data.get("operations",[]) if isinstance(data,dict) else []
+        self._emit("operations_result", num_operations=len(ops), data_type=type(data).__name__, 
+                   has_operations_key="operations" in (data if isinstance(data, dict) else {}))
         for ci,op in enumerate(ops):
             nm=(op.get("operation") or {}).get("name") or op.get("name") or ""
             if nm: job["operation_names"].append(nm); job["op_index_map"][nm]=ci
         if job.get("operation_names"): job["status"]="PENDING"
-        return len(job.get("operation_names",[]))
+        
+        final_count = len(job.get("operation_names",[]))
+        self._emit("start_one_result", operation_count=final_count, requested_copies=copies)
+        return final_count
 
     def _wrap_ops(self, op_names: List[str])->dict:
         uniq=[]; seen=set()
