@@ -73,6 +73,24 @@ class VideoCloneService:
         
         self._ffmpeg_available = ffmpeg_available
     
+    def is_yt_dlp_available(self) -> bool:
+        """
+        Check if yt-dlp is available
+        
+        Returns:
+            True if yt-dlp is available, False otherwise
+        """
+        return self._yt_dlp_available
+    
+    def is_ffmpeg_available(self) -> bool:
+        """
+        Check if ffmpeg is available
+        
+        Returns:
+            True if ffmpeg is available, False otherwise
+        """
+        return self._ffmpeg_available
+    
     def get_installation_instructions(self) -> str:
         """
         Get installation instructions for missing dependencies
@@ -144,7 +162,7 @@ class VideoCloneService:
                 "yt-dlp is not installed or not found in system PATH.\n\n"
                 + self.get_installation_instructions()
             )
-            self.log(f"[VideoClone] ERROR: {error_msg}")
+            self.log(f"[VideoClone] ERROR: yt-dlp not available")
             raise RuntimeError(error_msg)
         
         # Validate URL using urlparse
@@ -192,7 +210,7 @@ class VideoCloneService:
                 # TikTok specific options
                 cmd.extend(['--user-agent', 'Mozilla/5.0'])
             
-            self.log(f"[VideoClone] Running command: {' '.join(cmd)}")
+            self.log(f"[VideoClone] Running yt-dlp download...")
             
             # Execute download
             result = subprocess.run(
@@ -202,13 +220,14 @@ class VideoCloneService:
                 timeout=300  # 5 minutes timeout
             )
             
-            # Log output for debugging
+            # Log output for debugging (first 200 chars only to avoid exposing sensitive data)
             if result.stdout:
-                self.log(f"[VideoClone] yt-dlp output: {result.stdout[:500]}")
+                stdout_preview = result.stdout[:200].replace('\n', ' ')
+                self.log(f"[VideoClone] Download output: {stdout_preview}...")
             
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout
-                self.log(f"[VideoClone] ERROR: Download failed: {error_msg}")
+                self.log(f"[VideoClone] ERROR: Download failed with exit code {result.returncode}")
                 raise RuntimeError(f"Download failed: {error_msg}")
             
             # Find downloaded file
