@@ -1053,6 +1053,21 @@ class Text2VideoPanelV5(QWidget):
             ctx.get("title")
         )
         
+        # ISSUE #3 FIX: Display warning if generated script doesn't match idea
+        if data.get("idea_relevance_warning"):
+            warning_msg = data.get("idea_relevance_warning")
+            relevance_score = data.get("idea_relevance_score", 0.0)
+            QMessageBox.warning(
+                self,
+                "⚠️ Cảnh báo: Kịch bản có thể không khớp ý tưởng",
+                f"{warning_msg}\n\n"
+                f"Bạn có thể:\n"
+                f"1. Thử lại với ý tưởng chi tiết hơn\n"
+                f"2. Chọn Domain/Topic phù hợp để cải thiện context\n"
+                f"3. Chỉnh sửa kịch bản trong tab 'Chi tiết kịch bản'\n"
+                f"4. Tiếp tục sử dụng kịch bản này nếu bạn thấy phù hợp"
+            )
+        
         # Display Bible + Outline + Screenplay
         parts = []
         cb = data.get("character_bible") or []
