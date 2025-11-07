@@ -924,7 +924,16 @@ class _Worker(QObject):
                 if msg_type == "scene_started":
                     scene_idx, job_infos = data
                     completed_starts += 1
-                    self.log.emit(f"[INFO] Scene {scene_idx} started ({completed_starts}/{total_scenes})")
+                    # Only log success if jobs were actually created
+                    if job_infos:
+                        self.log.emit(
+                            f"[INFO] Scene {scene_idx} started ({completed_starts}/{total_scenes})"
+                        )
+                    else:
+                        self.log.emit(
+                            f"[ERROR] Scene {scene_idx} failed to start "
+                            f"({completed_starts}/{total_scenes})"
+                        )
                 elif msg_type == "card":
                     # Emit card update
                     self.job_card.emit(data)
@@ -944,7 +953,23 @@ class _Worker(QObject):
         for thread in threads:
             thread.join(timeout=60.0)  # 60s timeout to handle slow network/API
 
-        self.log.emit(f"[INFO] All scenes submitted. Starting polling for {len(all_jobs)} jobs...")
+        # Summary of scene starts
+        if len(all_jobs) == 0:
+            self.log.emit(
+                f"[ERROR] All {total_scenes} scenes failed to start. "
+                "No video generation jobs were created."
+            )
+            self.log.emit(
+                "[ERROR] Common causes: API quota exceeded, invalid account credentials, "
+                "or content policy violations."
+            )
+            self.log.emit("[INFO] Please check account settings and try again.")
+        else:
+            successful_scenes = len(set(job['scene'] for job in all_jobs))
+            self.log.emit(
+                f"[INFO] {successful_scenes}/{total_scenes} scenes started successfully. "
+                f"Starting polling for {len(all_jobs)} jobs..."
+            )
 
         # Now poll for all jobs (same logic as sequential but with all jobs from all threads)
         self._poll_all_jobs(all_jobs, dir_videos, thumbs_dir, up4k, auto_download, quality)
@@ -1012,13 +1037,19 @@ class _Worker(QObject):
                         results_queue.put(("scene_started", (scene_idx, job_infos)))
                         results_queue.put(("log", f"{thread_name}: Scene {scene_idx} started successfully"))
                     else:
-                        # Failed to start
+                        # Failed to start - API returned 0 operations
+                        # This can happen due to: quota exceeded, invalid credentials,
+                        # API errors, or content policy violations
+                        error_reason = (
+                            "Failed to start video generation (API returned 0 operations). "
+                            "Check: account credentials, API quota, and content policy compliance."
+                        )
                         for copy_idx in range(1, copies + 1):
                             card = {
                                 "scene": scene_idx,
                                 "copy": copy_idx,
                                 "status": "FAILED_START",
-                                "error_reason": "Failed to start video generation",
+                                "error_reason": error_reason,
                                 "json": scene["prompt"],
                                 "url": "",
                                 "path": "",
@@ -1028,14 +1059,33 @@ class _Worker(QObject):
                             results_queue.put(("card", card))
 
                         results_queue.put(("scene_started", (scene_idx, [])))
-                        results_queue.put(("log", f"{thread_name}: Scene {scene_idx} failed to start"))
+                        results_queue.put(
+                            ("log", f"{thread_name}: Scene {scene_idx} failed to start - {error_reason}")
+                        )
 
                     # Small delay between scenes to respect API rate limits
                     # TODO: Make this configurable per account rate limits
                     time.sleep(0.5)
 
                 except Exception as e:
+                    # Exception during scene start - create failure cards
+                    error_msg = f"Exception during start: {str(e)[:100]}"
                     results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
+                    
+                    for copy_idx in range(1, copies + 1):
+                        card = {
+                            "scene": scene_idx,
+                            "copy": copy_idx,
+                            "status": "FAILED_START",
+                            "error_reason": error_msg,
+                            "json": scene.get("prompt", ""),
+                            "url": "",
+                            "path": "",
+                            "thumb": "",
+                            "dir": dir_videos
+                        }
+                        results_queue.put(("card", card))
+                    
                     results_queue.put(("scene_started", (scene_idx, [])))
 
             results_queue.put(("log", f"{thread_name}: Batch complete"))
