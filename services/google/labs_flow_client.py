@@ -346,11 +346,11 @@ class LabsFlowClient:
                             if nm: 
                                 job["operation_names"].append(nm)
                                 job["op_index_map"][nm]=k
-                                # Store metadata for batch check
+                                # Store metadata for batch check (sceneId and status from Google API)
+                                # Always store metadata with at least the default status for Google API compatibility
                                 scene_id = ops[0].get("sceneId", "")
                                 status = ops[0].get("status", "MEDIA_GENERATION_STATUS_PENDING")
-                                if scene_id or status:
-                                    job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
+                                job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
                                 break
                     except Exception: continue
             return len(job.get("operation_names",[]))
@@ -363,10 +363,10 @@ class LabsFlowClient:
                 job["operation_names"].append(nm)
                 job["op_index_map"][nm]=ci
                 # Store metadata for batch check (sceneId and status from Google API)
+                # Always store metadata with at least the default status for Google API compatibility
                 scene_id = op.get("sceneId", "")
                 status = op.get("status", "MEDIA_GENERATION_STATUS_PENDING")
-                if scene_id or status:
-                    job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
+                job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
         if job.get("operation_names"): job["status"]="PENDING"
         return len(job.get("operation_names",[]))
 
