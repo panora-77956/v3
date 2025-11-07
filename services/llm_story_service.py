@@ -206,9 +206,31 @@ def _schema_prompt(idea, style_vi, out_lang, n, per, mode):
     # Build language instruction
     language_instruction = f"""
 IMPORTANT LANGUAGE REQUIREMENT:
-- All narration, dialogue, and voice-over MUST be in {target_language}
-- All scene descriptions should match the cultural context of {target_language}
-- Do NOT mix languages unless specifically requested
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌍 TARGET LANGUAGE: {target_language}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CRITICAL - MUST FOLLOW:**
+1. ALL "text_tgt" fields in dialogues MUST be in {target_language}
+2. ALL "prompt_tgt" fields MUST be in {target_language}
+3. "title_tgt", "outline_tgt", "screenplay_tgt" MUST be in {target_language}
+4. Scene descriptions in "prompt_tgt" should match cultural context of {target_language}
+5. Character names can stay in original form but dialogue MUST be {target_language}
+
+**Example for Vietnamese (vi):**
+  "text_vi": "Xin chào",
+  "text_tgt": "Xin chào"  ← SAME as source
+
+**Example for English (en):**
+  "text_vi": "Xin chào",
+  "text_tgt": "Hello"  ← TRANSLATED to English
+
+**Example for Japanese (ja):**
+  "text_vi": "Xin chào", 
+  "text_tgt": "こんにちは"  ← TRANSLATED to Japanese
+
+⚠️ DO NOT mix languages - stick to {target_language} for ALL target fields!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
     
     # Detect if user provided detailed screenplay vs just idea
@@ -661,6 +683,57 @@ def _validate_idea_relevance(idea, generated_content, threshold=0.15):
     
     return True, similarity, None
 
+def _validate_dialogue_language(scenes, target_lang):
+    """
+    Validate that dialogue text_tgt fields are in the correct target language.
+    
+    This is a simple heuristic check - we look for signs that dialogues
+    might be in the wrong language (e.g., Vietnamese text when English is expected).
+    
+    Args:
+        scenes: List of scene dicts with dialogues
+        target_lang: Target language code (e.g., 'en', 'ja', 'vi')
+    
+    Returns:
+        tuple: (is_valid: bool, warning_message: str or None)
+    """
+    if not scenes or target_lang == 'vi':
+        # Can't validate Vietnamese or if no scenes
+        return True, None
+    
+    issues = []
+    vietnamese_chars = set('àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ')
+    
+    for scene_idx, scene in enumerate(scenes, 1):
+        dialogues = scene.get("dialogues", [])
+        for dlg_idx, dlg in enumerate(dialogues, 1):
+            if isinstance(dlg, dict):
+                text_tgt = dlg.get("text_tgt", "")
+                if text_tgt:
+                    # Simple heuristic: check for Vietnamese characters
+                    has_vietnamese = any(c.lower() in vietnamese_chars for c in text_tgt)
+                    
+                    # If target is not Vietnamese but text has Vietnamese chars
+                    if has_vietnamese and target_lang != 'vi':
+                        speaker = dlg.get("speaker", "Unknown")
+                        issues.append(
+                            f"Scene {scene_idx}, Dialogue {dlg_idx} ({speaker}): "
+                            f"Contains Vietnamese characters but target language is {LANGUAGE_NAMES.get(target_lang, target_lang)}"
+                        )
+    
+    if issues:
+        warning = (
+            f"⚠️ CẢNH BÁO: Một số lời thoại có thể không đúng ngôn ngữ đích!\n\n"
+            f"Phát hiện {len(issues)} vấn đề:\n" +
+            "\n".join(f"- {issue}" for issue in issues[:5])  # Show first 5
+        )
+        if len(issues) > 5:
+            warning += f"\n... và {len(issues) - 5} vấn đề khác"
+        
+        return False, warning
+    
+    return True, None
+
 def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_key=None, output_lang='vi', domain=None, topic=None, voice_config=None):
     """
     Generate video script with optional domain/topic expertise and voice settings
@@ -728,6 +801,12 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
     else:
         # Store score for debugging/telemetry
         res["idea_relevance_score"] = relevance_score
+    
+    # ISSUE #4 FIX: Validate dialogue language consistency
+    dialogue_valid, dialogue_warning = _validate_dialogue_language(scenes, output_lang)
+    if not dialogue_valid and dialogue_warning:
+        print(dialogue_warning)
+        res["dialogue_language_warning"] = dialogue_warning
     
     # ISSUE #2 FIX: Enforce character consistency
     character_bible = res.get("character_bible", [])
