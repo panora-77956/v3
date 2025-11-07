@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import datetime
+import time
 from xml.sax.saxutils import escape as xml_escape
 
 from PyQt5.QtCore import QObject, pyqtSignal
@@ -999,9 +1000,6 @@ class _Worker(QObject):
     
     def _poll_all_jobs(self, jobs, dir_videos, thumbs_dir, up4k, auto_download, quality):
         """Poll all jobs for completion (shared logic between parallel and sequential)"""
-        # BUG FIX: Import time module for sleep calls
-        import time
-        
         if not jobs:
             self.log.emit("[INFO] No jobs to poll")
             return

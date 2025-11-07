@@ -22,7 +22,8 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
     QPushButton, QShortcut, QSlider, QSpinBox, QTableWidget,
     QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget, QTabWidget,
-    QFileDialog, QFrame, QApplication,QStackedWidget, QDialog,QGridLayout # Added for clipboard
+    QFileDialog, QFrame, QApplication,QStackedWidget, QDialog,QGridLayout,
+    QSizePolicy # Added for responsive card sizing
 )
 
 # Original imports
@@ -85,7 +86,7 @@ class CollapsibleGroupBox(QGroupBox):
             self._accordion_group.setChecked(False)
 
 class StoryboardView(QWidget):
-    """Grid view for scenes - 3 columns layout"""
+    """Grid view for scenes - Responsive layout adapts to screen size"""
     
     scene_clicked = pyqtSignal(int)
     
@@ -99,28 +100,71 @@ class StoryboardView(QWidget):
         scroll.setFrameShape(QFrame.NoFrame)
         scroll.setStyleSheet("QScrollArea { background: white; border: none; }")  # Enhanced: Ensure white bg
         
-        container = QWidget()
-        container.setStyleSheet("QWidget { background: white; }")  # Enhanced: White background
-        self.grid_layout = QGridLayout(container)
+        self.container = QWidget()
+        self.container.setStyleSheet("QWidget { background: white; }")  # Enhanced: White background
+        self.grid_layout = QGridLayout(self.container)
         self.grid_layout.setSpacing(12)
         self.grid_layout.setContentsMargins(12, 12, 12, 12)
-        self.grid_layout.setAlignment(Qt.AlignTop)
+        self.grid_layout.setAlignment(Qt.AlignTop | Qt.AlignLeft)  # NEW: Align left to prevent centering gaps
         
-        scroll.setWidget(container)
+        scroll.setWidget(self.container)
         
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.addWidget(scroll)
         
         self.scene_cards = {}
+        self.num_columns = 3  # Default columns, will be recalculated
+    
+    def _calculate_columns(self):
+        """Calculate optimal number of columns based on container width"""
+        container_width = self.container.width()
+        if container_width <= 0:
+            return 3  # Default
+        
+        # Each card needs about 280px width + 12px spacing
+        card_width = 280 + 12
+        optimal_columns = max(1, container_width // card_width)
+        
+        # Limit to reasonable range (2-5 columns)
+        return min(5, max(2, optimal_columns))
+    
+    def resizeEvent(self, event):
+        """Handle resize to adjust column count"""
+        super().resizeEvent(event)
+        new_columns = self._calculate_columns()
+        if new_columns != self.num_columns:
+            self.num_columns = new_columns
+            self._relayout_cards()
+    
+    def _relayout_cards(self):
+        """Reorganize cards based on new column count"""
+        if not self.scene_cards:
+            return
+        
+        # Remove all widgets from layout
+        for i in reversed(range(self.grid_layout.count())):
+            item = self.grid_layout.itemAt(i)
+            if item and item.widget():
+                self.grid_layout.removeWidget(item.widget())
+        
+        # Re-add cards with new layout
+        for scene_num in sorted(self.scene_cards.keys()):
+            idx = scene_num - 1
+            row = idx // self.num_columns
+            col = idx % self.num_columns
+            self.grid_layout.addWidget(self.scene_cards[scene_num], row, col)
     
     def add_scene(self, scene_num, thumbnail_path, prompt_text, state_dict):
-        row = (scene_num - 1) // 3
-        col = (scene_num - 1) % 3
+        # NEW: Calculate position based on current column count
+        idx = scene_num - 1
+        row = idx // self.num_columns
+        col = idx % self.num_columns
         
         card = QFrame()
         card.setMinimumSize(240, 220)
-        card.setMaximumSize(280, 260)
+        # NEW: Remove maximum size to allow responsive scaling
+        card.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         card.setCursor(Qt.PointingHandCursor)
         card.setStyleSheet("""
             QFrame {
