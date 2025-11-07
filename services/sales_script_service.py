@@ -10,6 +10,14 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
     """
     Robust JSON parser with 5 fallback strategies to handle malformed LLM responses.
     
+    Handles common LLM formatting errors including:
+    - Missing commas between properties
+    - Missing commas between objects in arrays
+    - Trailing commas
+    - Duplicate commas
+    - Markdown code blocks
+    - Single quotes instead of double quotes
+    
     Args:
         response_text: Raw text response from LLM
         source: Source identifier for logging (e.g., "SalesScript", "SocialMedia")
@@ -61,6 +69,30 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
         if "'" in cleaned and cleaned.count("'") > cleaned.count('"'):
             cleaned = cleaned.replace("'", '"')
 
+        # Fix missing commas between JSON properties (common LLM error)
+        # Pattern 1: "value" followed by "key" without comma
+        cleaned = re.sub(r'"\s+"', '", "', cleaned)
+        
+        # Pattern 2: number/boolean/null followed by "key" without comma
+        # Handles cases like: 1 "desc" -> 1, "desc"
+        cleaned = re.sub(r'(\d+|true|false|null)(\s+)"', r'\1, "', cleaned)
+        
+        # Pattern 3: closing ] or } followed by "key" without comma
+        # Handles cases like: ] "key" -> ], "key" or } "key" -> }, "key"
+        cleaned = re.sub(r'(]|})(\s+)"', r'\1, "', cleaned)
+        
+        # Fix missing commas between objects in arrays: }{ -> },{
+        cleaned = re.sub(r'\}\s*\{', '}, {', cleaned)
+        
+        # Fix missing commas: ]{ -> ],[
+        cleaned = re.sub(r'\]\s*\{', '], {', cleaned)
+        
+        # Fix missing commas: }[ -> },[
+        cleaned = re.sub(r'\}\s*\[', '}, [', cleaned)
+        
+        # Remove duplicate commas: ,, -> ,
+        cleaned = re.sub(r',\s*,', ',', cleaned)
+
         # Remove trailing commas before } or ]
         cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
 
@@ -81,7 +113,17 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError:
-                # Apply fixes from strategy 3
+                # Apply all fixes from strategy 3
+                # Fix missing commas between properties
+                json_str = re.sub(r'"\s+"', '", "', json_str)
+                json_str = re.sub(r'(\d+|true|false|null)(\s+)"', r'\1, "', json_str)
+                json_str = re.sub(r'(]|})(\s+)"', r'\1, "', json_str)
+                json_str = re.sub(r'\}\s*\{', '}, {', json_str)
+                json_str = re.sub(r'\]\s*\{', '], {', json_str)
+                json_str = re.sub(r'\}\s*\[', '}, [', json_str)
+                # Remove duplicate commas
+                json_str = re.sub(r',\s*,', ',', json_str)
+                # Remove trailing commas
                 json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
                 return json.loads(json_str)
     except json.JSONDecodeError as e:
