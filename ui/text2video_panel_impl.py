@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import datetime
+import time
 from xml.sax.saxutils import escape as xml_escape
 
 from PyQt5.QtCore import QObject, pyqtSignal
