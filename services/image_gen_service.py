@@ -143,19 +143,15 @@ def generate_image_with_rate_limit(
         api_keys: List of API keys to rotate through (optional, uses config if not provided)
         model: Model to use (gemini, dalle, imagen_4, etc.)
         aspect_ratio: Image aspect ratio (e.g., "9:16", "16:9", "1:1", "4:5")
-        size: Image size (legacy parameter for DALL-E)
-        delay_before: Seconds to wait before making the call (default 0, no delay)
-        rate_limit_delay: Minimum seconds between calls (default 10.0)
-        max_calls_per_minute: Maximum API calls per minute (default 6)
         logger: Optional callback function for logging (alias for log_callback)
         log_callback: Optional callback function for logging
         reference_images: Reference images for generation (optional)
         
-        # Legacy parameters (kept for backwards compatibility, ignored):
-        delay_before: Ignored - rotation manager handles delays
-        size: Ignored - use aspect_ratio instead
-        rate_limit_delay: Ignored - rotation manager handles delays
-        max_calls_per_minute: Ignored - rotation manager handles rate limits
+        # Legacy parameters (kept for backwards compatibility, currently not used):
+        size: Image size (legacy parameter for DALL-E, not currently used)
+        delay_before: Seconds to wait before call (not used - rotation manager handles delays)
+        rate_limit_delay: Minimum seconds between calls (not used - rotation manager handles this)
+        max_calls_per_minute: Maximum API calls per minute (not used - rotation manager handles this)
     
     Returns:
         Generated image bytes or None if generation fails
@@ -164,7 +160,8 @@ def generate_image_with_rate_limit(
         - Either 'prompt' or 'text' parameter must be provided
         - For Imagen 4: Automatically normalizes 4:5 to 3:4 (closest supported ratio)
         - For Gemini: Accepts any aspect ratio from UI
-        - Legacy parameters (delay_before, size, etc.) are ignored - use new rotation manager
+        - Legacy parameters (size, delay_before, rate_limit_delay, max_calls_per_minute) are 
+          accepted for backward compatibility but are not used by the current implementation
     """
     # Support both 'prompt' and 'text' parameter names for backward compatibility
     if prompt is None and text is None:
