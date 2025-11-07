@@ -6,13 +6,26 @@ Date: 2025-01-06
 """
 
 import os
+
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QComboBox, QSlider, QGroupBox, QScrollArea,
-    QGridLayout, QTextEdit, QFrame, QMessageBox, QProgressBar,
-    QSplitter
+    QComboBox,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QSlider,
+    QSplitter,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 
@@ -42,7 +55,7 @@ class DownloadWorker(QThread):
             # Check dependencies first
             if not service.is_yt_dlp_available():
                 self.error.emit(
-                    "yt-dlp is not installed or not found in PATH.\n\n" +
+                    "yt-dlp Python module is not installed.\n\n" +
                     service.get_installation_instructions()
                 )
                 return
@@ -202,7 +215,9 @@ class SceneCard(QFrame):
         prompt_text = QTextEdit()
         prompt_text.setPlainText(prompt)
         prompt_text.setMaximumHeight(80)
-        prompt_text.setStyleSheet("background: #F5F5F5; border: 1px solid #E0E0E0; border-radius: 4px;")
+        prompt_text.setStyleSheet(
+            "background: #F5F5F5; border: 1px solid #E0E0E0; border-radius: 4px;"
+        )
         layout.addWidget(prompt_text)
 
 
@@ -404,7 +419,9 @@ class CloneVideoPanel(QWidget):
         # Metadata display
         self.metadata_label = QLabel("")
         self.metadata_label.setFont(QFont("Segoe UI", 9))
-        self.metadata_label.setStyleSheet("color: #888; background: #F5F5F5; padding: 8px; border-radius: 4px;")
+        self.metadata_label.setStyleSheet(
+            "color: #888; background: #F5F5F5; padding: 8px; border-radius: 4px;"
+        )
         self.metadata_label.setVisible(False)
         layout.addWidget(self.metadata_label)
 
@@ -487,7 +504,9 @@ class CloneVideoPanel(QWidget):
 
         style = self.style_combo.currentText()
 
-        self.log_viewer.append_log(f"[INFO] Settings - Scenes: {num_scenes}, Language: {language}, Style: {style}")
+        self.log_viewer.append_log(
+            f"[INFO] Settings - Scenes: {num_scenes}, Language: {language}, Style: {style}"
+        )
 
         # Get API key
         api_key = None
@@ -537,7 +556,10 @@ class CloneVideoPanel(QWidget):
         self.metadata_label.setText(meta_text)
         self.metadata_label.setVisible(True)
         # Log basic metadata only (no sensitive content)
-        self.log_viewer.append_log(f"[INFO] Video: {metadata.get('duration', 0):.1f}s, {metadata.get('width', 0)}x{metadata.get('height', 0)}")
+        self.log_viewer.append_log(
+            f"[INFO] Video: {metadata.get('duration', 0):.1f}s, "
+            f"{metadata.get('width', 0)}x{metadata.get('height', 0)}"
+        )
 
         # Display scenes
         self._display_scenes(results)

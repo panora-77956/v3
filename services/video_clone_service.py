@@ -6,11 +6,11 @@ Download and analyze videos from TikTok/YouTube URLs
 
 import os
 import shutil
-import tempfile
 import subprocess
-from typing import Dict, Optional, Set, Callable
-from urllib.parse import urlparse
 import sys
+import tempfile
+from typing import Callable, Dict, Optional, Set
+from urllib.parse import urlparse
 
 
 class VideoCloneService:
@@ -19,7 +19,7 @@ class VideoCloneService:
     def __init__(self, log_callback: Optional[Callable] = None):
         """
         Initialize video clone service
-        
+
         Args:
             log_callback: Optional callback for logging
         """
@@ -32,20 +32,14 @@ class VideoCloneService:
         Check if required dependencies (yt-dlp, ffmpeg) are available
         Logs warnings but doesn't raise errors during initialization
         """
-        # Check for yt-dlp
+        # Check for yt-dlp Python module
         yt_dlp_available = False
         try:
-            result = subprocess.run(
-                ['yt-dlp', '--version'],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
-            if result.returncode == 0:
-                yt_dlp_available = True
-                self.log(f"[VideoClone] yt-dlp version: {result.stdout.strip()}")
-        except FileNotFoundError:
-            self.log("[VideoClone] WARNING: yt-dlp not found in PATH")
+            import yt_dlp
+            yt_dlp_available = True
+            self.log(f"[VideoClone] yt-dlp version: {yt_dlp.version.__version__}")
+        except ImportError:
+            self.log("[VideoClone] WARNING: yt-dlp module not found")
         except Exception as e:
             self.log(f"[VideoClone] WARNING: Error checking yt-dlp: {e}")
 
@@ -75,7 +69,7 @@ class VideoCloneService:
     def is_yt_dlp_available(self) -> bool:
         """
         Check if yt-dlp is available
-        
+
         Returns:
             True if yt-dlp is available, False otherwise
         """
@@ -84,7 +78,7 @@ class VideoCloneService:
     def is_ffmpeg_available(self) -> bool:
         """
         Check if ffmpeg is available
-        
+
         Returns:
             True if ffmpeg is available, False otherwise
         """
@@ -93,7 +87,7 @@ class VideoCloneService:
     def get_installation_instructions(self) -> str:
         """
         Get installation instructions for missing dependencies
-        
+
         Returns:
             Formatted installation instructions
         """
@@ -102,18 +96,17 @@ class VideoCloneService:
         if not self._yt_dlp_available:
             if sys.platform == 'win32':
                 instructions.append(
-                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "yt-dlp Python module is not installed.\n\n"
                     "To install yt-dlp on Windows:\n"
                     "1. Using pip: pip install yt-dlp\n"
-                    "2. Or download from: https://github.com/yt-dlp/yt-dlp/releases\n"
-                    "3. Add yt-dlp.exe to your system PATH\n"
+                    "2. Or using the requirements file: pip install -r requirements.txt\n"
                 )
             else:
                 instructions.append(
-                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "yt-dlp Python module is not installed.\n\n"
                     "To install yt-dlp:\n"
                     "- Using pip: pip install yt-dlp\n"
-                    "- Or visit: https://github.com/yt-dlp/yt-dlp/releases\n"
+                    "- Or using the requirements file: pip install -r requirements.txt\n"
                 )
 
         if not self._ffmpeg_available:
@@ -135,22 +128,22 @@ class VideoCloneService:
         return "\n".join(instructions)
 
     def download_video(
-        self, 
-        url: str, 
+        self,
+        url: str,
         platform: str = "auto",
         output_dir: Optional[str] = None
     ) -> str:
         """
         Download video from URL using yt-dlp
-        
+
         Args:
             url: Video URL (TikTok or YouTube)
             platform: Platform type ('tiktok', 'youtube', or 'auto')
             output_dir: Output directory (if None, uses temp directory)
-        
+
         Returns:
             Path to downloaded video file
-        
+
         Raises:
             ValueError: If URL is invalid
             RuntimeError: If download fails or yt-dlp is not available
@@ -158,10 +151,10 @@ class VideoCloneService:
         # Check if yt-dlp is available
         if not self._yt_dlp_available:
             error_msg = (
-                "yt-dlp is not installed or not found in system PATH.\n\n"
+                "yt-dlp Python module is not installed.\n\n"
                 + self.get_installation_instructions()
             )
-            self.log(f"[VideoClone] ERROR: yt-dlp not available")
+            self.log("[VideoClone] ERROR: yt-dlp not available")
             raise RuntimeError(error_msg)
 
         # Validate URL using urlparse
@@ -195,57 +188,59 @@ class VideoCloneService:
         self.log(f"[VideoClone] Output directory: {output_dir}")
 
         try:
-            # Build yt-dlp command
-            cmd = [
-                'yt-dlp',
-                '-f', 'best[ext=mp4]/best',  # Prefer mp4 format
-                '--no-playlist',  # Don't download playlists
-                '-o', output_template,
-                url
-            ]
+            import yt_dlp
+
+            # Configure yt-dlp options
+            ydl_opts = {
+                'format': 'best[ext=mp4]/best',  # Prefer mp4 format
+                'noplaylist': True,  # Don't download playlists
+                'outtmpl': output_template,
+                'quiet': False,
+                'no_warnings': False,
+            }
 
             # Add platform-specific options
             if platform == 'tiktok':
                 # TikTok specific options
-                cmd.extend(['--user-agent', 'Mozilla/5.0'])
+                ydl_opts['http_headers'] = {'User-Agent': 'Mozilla/5.0'}
 
-            self.log(f"[VideoClone] Running yt-dlp download...")
+            self.log("[VideoClone] Running yt-dlp download...")
 
-            # Execute download
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300  # 5 minutes timeout
-            )
+            # Download using yt-dlp Python API
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                # Download the video
+                info = ydl.extract_info(url, download=True)
 
-            if result.returncode != 0:
-                error_msg = result.stderr or result.stdout
-                self.log(f"[VideoClone] ERROR: Download failed with exit code {result.returncode}")
-                raise RuntimeError(f"Download failed: {error_msg}")
+                # Get the downloaded filename
+                if 'requested_downloads' in info and info['requested_downloads']:
+                    video_path = info['requested_downloads'][0]['filepath']
+                else:
+                    # Fallback: construct filename from template
+                    filename = ydl.prepare_filename(info)
+                    video_path = filename
 
-            # Find downloaded file
-            video_files = [
-                os.path.join(output_dir, f) 
-                for f in os.listdir(output_dir) 
-                if f.endswith(('.mp4', '.webm', '.mkv'))
-            ]
+            # Verify file exists
+            if not os.path.exists(video_path):
+                # Try to find any video file in the output directory
+                video_files = [
+                    os.path.join(output_dir, f)
+                    for f in os.listdir(output_dir)
+                    if f.endswith(('.mp4', '.webm', '.mkv'))
+                ]
 
-            if not video_files:
-                raise RuntimeError("No video file found after download")
+                if not video_files:
+                    raise RuntimeError("No video file found after download")
 
-            video_path = video_files[0]
+                video_path = video_files[0]
+
             self.log(f"[VideoClone] ✓ Downloaded: {os.path.basename(video_path)}")
 
             return video_path
 
-        except subprocess.TimeoutExpired:
-            self.log("[VideoClone] ERROR: Download timeout (5 minutes exceeded)")
-            raise RuntimeError("Download timeout (5 minutes exceeded)")
-        except FileNotFoundError as e:
+        except ImportError as e:
             # This should not happen as we check _yt_dlp_available, but keep as safety
             error_msg = (
-                "yt-dlp executable not found. Please ensure yt-dlp is installed and in your PATH.\n\n"
+                "yt-dlp module not found. Please ensure yt-dlp is installed.\n\n"
                 + self.get_installation_instructions()
             )
             self.log(f"[VideoClone] ERROR: {error_msg}")
@@ -257,10 +252,10 @@ class VideoCloneService:
     def _detect_platform(self, url: str) -> str:
         """
         Auto-detect platform from URL using hostname parsing
-        
+
         Args:
             url: Video URL
-        
+
         Returns:
             Platform name ('tiktok', 'youtube', or 'unknown')
         """
@@ -295,14 +290,14 @@ class VideoCloneService:
     ) -> Dict:
         """
         Analyze video: extract scenes and generate prompts
-        
+
         Args:
             video_path: Path to video file
             num_scenes: Number of scenes to extract
             language: Language for prompts
             style: Video style
             api_key: Google API key for vision API
-        
+
         Returns:
             Dict with analysis results: {
                 'scenes': List[Dict],
@@ -346,10 +341,10 @@ class VideoCloneService:
     def validate_url(self, url: str) -> tuple:
         """
         Validate URL and detect platform
-        
+
         Args:
             url: Video URL to validate
-        
+
         Returns:
             Tuple of (is_valid: bool, platform: str, error_msg: str)
         """
@@ -376,7 +371,7 @@ class VideoCloneService:
     def cleanup_temp_files(self, video_path: str):
         """
         Clean up temporary files created during processing
-        
+
         Args:
             video_path: Path to video file (will delete parent dir if temp)
         """
