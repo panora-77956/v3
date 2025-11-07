@@ -592,6 +592,40 @@ class _Worker(QObject):
         jobs = []
         # Cache for LabsClient instances by project_id to avoid redundant creation
         client_cache = {}
+        
+        # Event handler for diagnostic logging
+        def on_labs_event(event):
+            kind = event.get("kind", "")
+            if kind == "video_generator_info":
+                gen_type = event.get("generator_type", "Unknown")
+                model = event.get("model_key", "")
+                aspect = event.get("aspect_ratio", "")
+                self.log.emit(f"[INFO] Video Generator: {gen_type} | Model: {model} | Aspect: {aspect}")
+            elif kind == "api_call_info":
+                endpoint = event.get("endpoint", "")
+                endpoint_type = event.get("endpoint_type", "")
+                num_req = event.get("num_requests", 0)
+                self.log.emit(f"[INFO] API Call: {endpoint_type} endpoint | {num_req} request(s)")
+                self.log.emit(f"[DEBUG] Endpoint URL: {endpoint}")
+            elif kind == "trying_model":
+                model = event.get("model_key", "")
+                self.log.emit(f"[DEBUG] Trying model: {model}")
+            elif kind == "model_failed":
+                model = event.get("model_key", "")
+                error = event.get("error", "")
+                self.log.emit(f"[WARN] Model {model} failed: {error}")
+            elif kind == "operations_result":
+                num_ops = event.get("num_operations", 0)
+                has_key = event.get("has_operations_key", False)
+                self.log.emit(f"[DEBUG] API returned {num_ops} operations (has_operations_key={has_key})")
+            elif kind == "start_one_result":
+                count = event.get("operation_count", 0)
+                requested = event.get("requested_copies", 0)
+                self.log.emit(f"[INFO] Video generation: {count}/{requested} operations created")
+            elif kind == "http_other_err":
+                code = event.get("code", "")
+                detail = event.get("detail", "")
+                self.log.emit(f"[ERROR] HTTP {code}: {detail}")
 
         # PR#5: Batch generation - make one call per scene with copies parameter (not N calls)
         for scene_idx, scene in enumerate(p["scenes"], start=1):
@@ -600,7 +634,7 @@ class _Worker(QObject):
 
             # Create or reuse client for this project_id
             if project_id not in client_cache:
-                client_cache[project_id] = LabsClient(tokens, on_event=None)
+                client_cache[project_id] = LabsClient(tokens, on_event=on_labs_event)
             client = client_cache[project_id]
 
             # Single API call with copies parameter (instead of N calls)
@@ -980,8 +1014,42 @@ class _Worker(QObject):
     def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
         """Process a batch of scenes in a separate thread"""
         try:
-            # Create client for this account
-            client = LabsClient(account.tokens, on_event=None)
+            # Create event handler for diagnostic logging
+            def on_labs_event(event):
+                kind = event.get("kind", "")
+                if kind == "video_generator_info":
+                    gen_type = event.get("generator_type", "Unknown")
+                    model = event.get("model_key", "")
+                    aspect = event.get("aspect_ratio", "")
+                    results_queue.put(("log", f"[INFO] Video Generator: {gen_type} | Model: {model} | Aspect: {aspect}"))
+                elif kind == "api_call_info":
+                    endpoint = event.get("endpoint", "")
+                    endpoint_type = event.get("endpoint_type", "")
+                    num_req = event.get("num_requests", 0)
+                    results_queue.put(("log", f"[INFO] API Call: {endpoint_type} endpoint | {num_req} request(s)"))
+                    results_queue.put(("log", f"[DEBUG] Endpoint URL: {endpoint}"))
+                elif kind == "trying_model":
+                    model = event.get("model_key", "")
+                    results_queue.put(("log", f"[DEBUG] Trying model: {model}"))
+                elif kind == "model_failed":
+                    model = event.get("model_key", "")
+                    error = event.get("error", "")
+                    results_queue.put(("log", f"[WARN] Model {model} failed: {error}"))
+                elif kind == "operations_result":
+                    num_ops = event.get("num_operations", 0)
+                    has_key = event.get("has_operations_key", False)
+                    results_queue.put(("log", f"[DEBUG] API returned {num_ops} operations (has_operations_key={has_key})"))
+                elif kind == "start_one_result":
+                    count = event.get("operation_count", 0)
+                    requested = event.get("requested_copies", 0)
+                    results_queue.put(("log", f"[INFO] Video generation: {count}/{requested} operations created"))
+                elif kind == "http_other_err":
+                    code = event.get("code", "")
+                    detail = event.get("detail", "")
+                    results_queue.put(("log", f"[ERROR] HTTP {code}: {detail}"))
+            
+            # Create client for this account with event handler
+            client = LabsClient(account.tokens, on_event=on_labs_event)
 
             copies = p["copies"]
             model_key = p.get("model_key", "")
