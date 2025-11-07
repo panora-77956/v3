@@ -220,11 +220,6 @@ class VideoCloneService:
                 timeout=300  # 5 minutes timeout
             )
             
-            # Log output for debugging (first 200 chars only to avoid exposing sensitive data)
-            if result.stdout:
-                stdout_preview = result.stdout[:200].replace('\n', ' ')
-                self.log(f"[VideoClone] Download output: {stdout_preview}...")
-            
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout
                 self.log(f"[VideoClone] ERROR: Download failed with exit code {result.returncode}")

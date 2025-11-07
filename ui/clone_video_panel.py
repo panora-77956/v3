@@ -104,7 +104,17 @@ class LogViewer(QFrame):
         # Log text area
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setFont(QFont("Consolas, Monaco, Courier New, monospace", 9))
+        # Use platform's default monospace font with fallbacks
+        mono_font = QFont()
+        mono_font.setFamily("Consolas")  # Windows
+        if not mono_font.exactMatch():
+            mono_font.setFamily("Monaco")  # macOS
+        if not mono_font.exactMatch():
+            mono_font.setFamily("Courier New")  # Cross-platform
+        if not mono_font.exactMatch():
+            mono_font.setStyleHint(QFont.Monospace)  # System default monospace
+        mono_font.setPointSize(9)
+        self.log_text.setFont(mono_font)
         self.log_text.setStyleSheet("""
             QTextEdit {
                 background: #2D2D2D;
