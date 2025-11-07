@@ -200,6 +200,9 @@ def _schema_prompt(idea, style_vi, out_lang, n, per, mode):
     # Get target language display name
     target_language = LANGUAGE_NAMES.get(out_lang, 'Vietnamese (Tiếng Việt)')
     
+    # Get style-specific guidance
+    style_guidance = _get_style_specific_guidance(style_vi)
+    
     # Build language instruction
     language_instruction = f"""
 IMPORTANT LANGUAGE REQUIREMENT:
