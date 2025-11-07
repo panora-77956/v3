@@ -122,7 +122,7 @@ def _build_setting_details(location_context):
         return f"{location_context}. {base_details}"
     return base_details
 
-def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str, ratio_str:str, style:str, seconds:int=8, copies:int=1, resolution_hint:str=None, character_bible=None, enhanced_bible=None, voice_settings=None, location_context:str=None, tts_provider:str=None, voice_id:str=None, voice_name:str=None, domain:str=None, topic:str=None, quality:str=None, dialogues:list=None):
+def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str, ratio_str:str, style:str, seconds:int=8, copies:int=1, resolution_hint:str=None, character_bible=None, enhanced_bible=None, voice_settings=None, location_context:str=None, tts_provider:str=None, voice_id:str=None, voice_name:str=None, domain:str=None, topic:str=None, quality:str=None, dialogues:list=None, base_seed:int=None):
     """
     Enhanced prompt JSON schema with comprehensive metadata:
     - Full persona with expertise_context
@@ -135,6 +135,12 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     Part E: Now supports location_context for maintaining consistent backgrounds across scenes
     Part F: Enhanced audio, domain_context, and metadata fields (Issue #5)
     Part G: Now supports dialogues for proper voiceover generation (Issue #7)
+    Issue #33: Now supports base_seed for consistent style across scenes
+    
+    Args:
+        base_seed: Optional base seed for consistency across scenes.
+                  If None, generates a random seed.
+                  Sequential scenes use base_seed + scene_index for consistency.
     """
 
     ratio_map = {
@@ -513,7 +519,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "No unrealistic X-ray views; use graphic overlays only."
         ],
         "generation": {
-            "seed": __import__("random").randint(0, 2**31-1),
+            "seed": (base_seed + scene_index) if base_seed is not None else __import__("random").randint(0, 2**31-1),
             "copies": copies,
             "quality": quality or "standard",
             "consistency_mode": "strict"
@@ -649,6 +655,16 @@ class _Worker(QObject):
             voice_config=voice_config,
             progress_callback=on_progress  # NEW: Pass progress callback
         )
+        
+        # Issue #33: Generate base seed for video generation consistency
+        import random
+        base_seed = p.get("base_seed")
+        if base_seed is None:
+            base_seed = random.randint(0, 2**31 - 1)
+        
+        # Store base seed with script data
+        data["base_seed"] = base_seed
+        
         # auto-save to folders
         st = cfg.load()
         root = st.get("download_root") or ""
@@ -689,6 +705,8 @@ class _Worker(QObject):
             self.log.emit(f"[WARN] Lưu kịch bản thất bại: {e}")
 
         ctx = {"title": title, "prj_dir": prj_dir, "dir_script": dir_script, "dir_prompts": dir_prompts, "dir_videos": dir_videos, "scenes": data.get("scenes",[])}
+        # Issue #33: Pass base_seed in context
+        ctx["base_seed"] = base_seed
         self.log.emit("[INFO] Hoàn tất sinh kịch bản & lưu file.")
         self.story_done.emit(data, ctx)
 
