@@ -180,23 +180,39 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     }
 
     # Part D: Enhanced character details with detailed bible
-    # BUG FIX #2: Build comprehensive character_details with CRITICAL consistency requirement
-    # This ensures character consistency without polluting voiceover text
+    # Keep original character_details from character_bible without modification
+    # This ensures the prompt JSON is sent unmodified to Google Labs Flow
     character_details = "CRITICAL: Keep same person/character across all scenes. Primary talent remains visually consistent across all scenes."
     if enhanced_bible and hasattr(enhanced_bible, 'characters'):
-        # Use detailed character bible
+        # Use detailed character bible - preserve original without injection
         try:
-            from services.google.character_bible import inject_character_consistency
-            # Inject character details into the description
-            desc_with_char = inject_character_consistency(desc_tgt or desc_vi, enhanced_bible)
-            # Extract just the character block for character_details field
-            if '\n\n' in desc_with_char:
-                char_block = desc_with_char.split('\n\n')[0]
-                character_details = f"CRITICAL: Keep same person/character across all scenes. {char_block}"
+            # Build character details from enhanced bible characters
+            char_parts = []
+            for char in enhanced_bible.characters:
+                if isinstance(char, dict):
+                    nm = char.get("name", "")
+                    role = char.get("role", "")
+                    visual = char.get("visual_identity", "")
+                    key_trait = char.get("key_trait", "")
+                    
+                    if nm:
+                        # Build character description with visual identity
+                        parts = [f"{nm}"]
+                        if role:
+                            parts.append(f"({role})")
+                        if visual:
+                            parts.append(f"— Visual: {visual}")
+                        if key_trait:
+                            parts.append(f"Trait: {key_trait}")
+                        
+                        char_parts.append(" ".join(parts))
+            
+            if char_parts:
+                character_details = "CRITICAL: Keep same person/character across all scenes. " + "; ".join(char_parts) + ". Keep appearance and demeanor consistent across all scenes."
         except Exception as e:
             # Log the error for debugging but continue with fallback
             import sys
-            print(f"[WARN] Character bible injection failed: {e}", file=sys.stderr)
+            print(f"[WARN] Character bible processing failed: {e}", file=sys.stderr)
             # Intentional fallback to basic character_details - continue processing
     elif character_bible and isinstance(character_bible, list) and len(character_bible) > 0:
         # BUG FIX #2: Include ALL characters with visual_identity and CRITICAL consistency note

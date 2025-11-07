@@ -70,163 +70,113 @@ def _normalize_status(item: dict) -> str:
     if s in ("MEDIA_GENERATION_STATUS_FAILED","FAILED","ERROR"): return "FAILED"
     return "PROCESSING"
 
-def _trim_prompt_text(prompt_text: Any)->str:
+def _build_complete_prompt_text(prompt_data: Any) -> str:
     """
-    Extract and build the actual text prompt for video generation from structured prompt data.
+    Build a COMPLETE text prompt from JSON structure, preserving ALL fields.
     
-    For new format (with localization, key_action, character_details):
-    - Extracts the actual scene description from key_action or localization.{lang}.prompt
-    - Includes critical consistency information (character_details, hard_locks)
-    - Builds a comprehensive text prompt suitable for video generation
+    This function converts the full JSON prompt to a comprehensive text format
+    that includes ALL information needed for video generation.
     
-    For old format (with Objective, Persona, Task_Instructions):
-    - Falls back to legacy extraction logic
-    
-    For plain strings:
-    - Returns as-is if under limit, otherwise intelligently truncates
-    """
-    # Handle string input
-    if isinstance(prompt_text, str):
-        s=prompt_text.strip()
-        # If it's a reasonable length plain string, use it as-is
-        if len(s)<=MAX_PLAIN_STRING_LENGTH: return s
-        # Try to parse as JSON
-        try:
-            obj=json.loads(s)
-        except Exception:
-            # Not JSON, just a long string - truncate intelligently at sentence boundary
-            if len(s) <= MAX_PROMPT_LENGTH:
-                return s
-            # Find last period before MAX_PLAIN_STRING_LENGTH chars
-            truncate_at = s.rfind('.', 0, MAX_PLAIN_STRING_LENGTH)
-            if truncate_at > 3000:
-                return s[:truncate_at+1]
-            return s[:MAX_PLAIN_STRING_LENGTH]
-    else:
-        obj=prompt_text
-    
-    # Handle dictionary/JSON input
-    if isinstance(obj, dict):
-        # NEW FORMAT: Check for modern schema with localization, key_action, character_details
-        if "key_action" in obj or "localization" in obj or "character_details" in obj:
-            parts = []
-            
-            # 1. Character consistency (CRITICAL for maintaining same character across scenes)
-            if obj.get("character_details"):
-                parts.append(str(obj["character_details"]))
-            
-            # 2. Location/setting consistency (CRITICAL for maintaining same location)
-            hard_locks = obj.get("hard_locks", {})
-            if isinstance(hard_locks, dict):
-                location_lock = hard_locks.get("location")
-                if location_lock:
-                    parts.append(str(location_lock))
-                # Add identity lock if not already in character_details
-                identity_lock = hard_locks.get("identity")
-                if identity_lock and "character_details" not in obj:
-                    parts.append(str(identity_lock))
-            
-            # 3. Setting details
-            if obj.get("setting_details"):
-                parts.append(str(obj["setting_details"]))
-            
-            # 4. Main scene description - try localization first, then key_action
-            scene_description = ""
-            
-            # Try to get localized prompt (preferred)
-            localization = obj.get("localization", {})
-            if isinstance(localization, dict):
-                # Try to find the best language match
-                # Priority: vi (Vietnamese) > en (English) > first available
-                for lang in ["vi", "en"]:
-                    if lang in localization:
-                        lang_data = localization[lang]
-                        if isinstance(lang_data, dict) and "prompt" in lang_data:
-                            scene_description = str(lang_data["prompt"])
-                            break
-                
-                # If still no description, use first available language
-                if not scene_description:
-                    for lang_data in localization.values():
-                        if isinstance(lang_data, dict) and "prompt" in lang_data:
-                            scene_description = str(lang_data["prompt"])
-                            break
-            
-            # Fallback to key_action if no localized prompt found
-            if not scene_description and obj.get("key_action"):
-                scene_description = str(obj["key_action"])
-            
-            if scene_description:
-                parts.append(scene_description)
-            
-            # 5. Camera direction hints (keep it brief)
-            camera_dir = obj.get("camera_direction", [])
-            if isinstance(camera_dir, list) and camera_dir:
-                # Just include the first and last camera hints for brevity
-                try:
-                    first_shot = camera_dir[0].get("shot", "") if isinstance(camera_dir[0], dict) else ""
-                    last_shot = camera_dir[-1].get("shot", "") if isinstance(camera_dir[-1], dict) else ""
-                    if first_shot or last_shot:
-                        parts.append(f"Camera: {first_shot}; End: {last_shot}")
-                except (IndexError, AttributeError):
-                    pass
-            
-            # Combine all parts
-            text = "\n\n".join([p for p in parts if p])
-            
-            # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
-            if len(text) > MAX_PROMPT_LENGTH:
-                # Keep: character_details + location_lock + scene_description
-                priority_parts = []
-                if obj.get("character_details"):
-                    # Truncate character_details if very long
-                    char_details = str(obj["character_details"])
-                    if len(char_details) > MAX_CHARACTER_DETAILS_LENGTH:
-                        char_details = char_details[:MAX_CHARACTER_DETAILS_LENGTH] + "..."
-                    priority_parts.append(char_details)
-                
-                if hard_locks and hard_locks.get("location"):
-                    priority_parts.append(str(hard_locks["location"]))
-                
-                if scene_description:
-                    # Preserve full scene description, truncate if needed
-                    if len(scene_description) > MAX_SCENE_DESCRIPTION_LENGTH:
-                        scene_description = scene_description[:MAX_SCENE_DESCRIPTION_LENGTH]
-                    priority_parts.append(scene_description)
-                
-                text = "\n\n".join(priority_parts)
-            
-            return text
+    Args:
+        prompt_data: Full prompt JSON (dict) or text string
         
-        # OLD FORMAT: Legacy extraction for backward compatibility
-        parts=[]
-        if obj.get("Objective"): parts.append(str(obj["Objective"]))
-        per=obj.get("Persona") or {}
-        if isinstance(per, dict):
-            tone=per.get("Tone"); role=per.get("Role")
-            if role or tone: parts.append(f"Role: {role or ''}; Tone: {tone or ''}")
-        inst=obj.get("Task_Instructions") or []
-        if isinstance(inst, list):
-            parts+= [str(x) for x in inst][:6]
-        cons=obj.get("Constraints") or []
-        if isinstance(cons, list):
-            parts+= [str(x) for x in cons][:4]
-        text=" | ".join([p for p in parts if p])
-        if text: return text
+    Returns:
+        Complete text prompt with all fields preserved in structured format
+    """
+    # If already a string, return as-is (backward compatibility)
+    if isinstance(prompt_data, str):
+        return prompt_data
     
-    # Fallback: convert to JSON string and return (with reasonable limit)
-    try:
-        result = json.dumps(obj, ensure_ascii=False)
-        if len(result) <= MAX_PROMPT_LENGTH:
-            return result
-        # If too long, try to extract just the essential fields
-        if isinstance(obj, dict):
-            essential = {k: v for k, v in obj.items() if k in ["key_action", "character_details", "setting_details"]}
-            if essential:
-                return json.dumps(essential, ensure_ascii=False)
-        return result[:MAX_PROMPT_LENGTH]
-    except Exception:
-        return str(obj)[:MAX_PROMPT_LENGTH]
+    # If not dict, convert to string
+    if not isinstance(prompt_data, dict):
+        return str(prompt_data)
+    
+    # Build complete prompt text with ALL fields
+    sections = []
+    
+    # 1. VISUAL STYLE (CRITICAL - was being lost!)
+    constraints = prompt_data.get("constraints", {})
+    visual_style_tags = constraints.get("visual_style_tags", [])
+    if visual_style_tags:
+        style_text = ", ".join(visual_style_tags)
+        sections.append(f"VISUAL STYLE: {style_text}")
+    
+    # 2. CHARACTER DETAILS (preserve original, no injection!)
+    character_details = prompt_data.get("character_details", "")
+    if character_details:
+        sections.append(f"CHARACTER CONSISTENCY:\n{character_details}")
+    
+    # 3. HARD LOCKS (critical consistency requirements)
+    hard_locks = prompt_data.get("hard_locks", {})
+    if hard_locks:
+        locks = []
+        for key, value in hard_locks.items():
+            if value:
+                locks.append(f"- {key.replace('_', ' ').title()}: {value}")
+        if locks:
+            sections.append("CONSISTENCY REQUIREMENTS:\n" + "\n".join(locks))
+    
+    # 4. SETTING DETAILS
+    setting_details = prompt_data.get("setting_details", "")
+    if setting_details:
+        sections.append(f"SETTING: {setting_details}")
+    
+    # 5. KEY ACTION (main scene description - NEVER truncate!)
+    key_action = prompt_data.get("key_action", "")
+    
+    # Also check localization for scene description
+    if not key_action:
+        localization = prompt_data.get("localization", {})
+        if isinstance(localization, dict):
+            for lang in ["vi", "en"]:
+                if lang in localization:
+                    lang_data = localization[lang]
+                    if isinstance(lang_data, dict) and "prompt" in lang_data:
+                        key_action = str(lang_data["prompt"])
+                        break
+    
+    if key_action:
+        sections.append(f"SCENE ACTION:\n{key_action}")
+    
+    # 6. TASK INSTRUCTIONS (IMPORTANT - includes voiceover directives!)
+    task_instructions = prompt_data.get("Task_Instructions", [])
+    if task_instructions and isinstance(task_instructions, list):
+        instructions_text = "\n".join(f"- {instr}" for instr in task_instructions)
+        sections.append(f"TASK INSTRUCTIONS:\n{instructions_text}")
+    
+    # 7. VOICEOVER (language and text)
+    audio = prompt_data.get("audio", {})
+    if isinstance(audio, dict):
+        voiceover = audio.get("voiceover", {})
+        if isinstance(voiceover, dict):
+            vo_text = voiceover.get("text", "")
+            vo_lang = voiceover.get("language", "")
+            if vo_text:
+                sections.append(f"VOICEOVER ({vo_lang}):\n{vo_text}")
+    
+    # 8. CAMERA DIRECTION
+    camera_dir = prompt_data.get("camera_direction", [])
+    if isinstance(camera_dir, list) and camera_dir:
+        cam_text = []
+        for cam in camera_dir:
+            if isinstance(cam, dict):
+                time = cam.get("t", "")
+                shot = cam.get("shot", "")
+                if time and shot:
+                    cam_text.append(f"[{time}] {shot}")
+        if cam_text:
+            sections.append("CAMERA:\n" + "\n".join(cam_text))
+    
+    # 9. NEGATIVES (what to avoid)
+    negatives = prompt_data.get("negatives", [])
+    if negatives and isinstance(negatives, list):
+        neg_text = "\n".join(f"- {neg}" for neg in negatives)
+        sections.append(f"AVOID:\n{neg_text}")
+    
+    # Combine all sections with clear separators
+    complete_prompt = "\n\n".join(sections)
+    
+    return complete_prompt
 
 class LabsClient:
     MAX_RETRY_ATTEMPTS = 9  # Maximum total retry attempts across all tokens
@@ -363,8 +313,8 @@ class LabsClient:
         # start with the user's chosen model, then ladder through same-family models for the aspect
         models=[model_key]+[m for m in fallbacks.get(aspect_ratio, []) if m!=model_key]
 
-        # compose prompt text (trim if huge/complex)
-        prompt=_trim_prompt_text(prompt_text)
+        # compose prompt text (build complete prompt with all fields)
+        prompt=_build_complete_prompt_text(prompt_text)
 
         def _make_body(use_model, mid_val, copies_n):
             reqs=[]
@@ -541,8 +491,8 @@ class LabsClient:
         if num_videos > 4:
             num_videos = 4
 
-        # Trim prompt if too long
-        prompt_text = _trim_prompt_text(prompt)
+        # Build complete prompt with all fields
+        prompt_text = _build_complete_prompt_text(prompt)
 
         # Build batch request with multiple copies
         requests_list = []
