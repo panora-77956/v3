@@ -142,25 +142,65 @@ def _build_system_prompt(cfg:Dict[str,Any], sceneCount:int, models_json:str, pro
     imagesList = _images_refs(bool(models_json.strip()), product_count)
 
     return f"""
-Objective: Create a detailed video script in JSON format. The output MUST be a valid JSON object with a "scenes" key containing an array of scene objects. The entire script, including all descriptions and voiceovers, MUST be in the language specified by the languageCode ({languageCode}).
+Objective: Create a HIGHLY ENGAGING sales video script in JSON format that CONVERTS viewers into customers. 
+The output MUST be a valid JSON object with a "scenes" key containing an array of scene objects.
+All content MUST be in the target language ({languageCode}).
+
+═══════════════════════════════════════════════════════════════
+🎯 SALES VIDEO SUCCESS FRAMEWORK
+═══════════════════════════════════════════════════════════════
+
+**CRITICAL SUCCESS FACTORS:**
+1. **HOOK (First 3 seconds)**: MUST grab attention immediately
+   - Show the problem/pain point dramatically OR
+   - Show the result/transformation OR
+   - Ask a shocking question OR
+   - Make a bold claim
+   
+2. **EMOTIONAL JOURNEY**: Take viewers through:
+   - Problem Recognition → Agitation → Solution → Desire → Action
+   
+3. **STORYTELLING over SELLING**: 
+   - People buy stories, not products
+   - Show transformation, not just features
+   - Use "before & after" narrative structure
+
+4. **TRUST BUILDING**:
+   - Social proof hints (implied testimonials)
+   - Authority signals
+   - Authenticity (real situations, relatable)
+
+5. **CALL TO ACTION**: Clear, urgent, benefit-focused
+
+═══════════════════════════════════════════════════════════════
+📋 INPUT INFORMATION
+═══════════════════════════════════════════════════════════════
 
 Video Idea: {idea}
-Core Content: {content}
-Total Duration: Approximately {duration} seconds.
-Script Style: {scriptStyle}
+Core Content/Product: {content}
+Total Duration: {duration} seconds
+Script Style: {scriptStyle} (Enhanced with conversion psychology)
 Visual Style: {visualStyleString}
-Setting/Background Generation: You MUST invent a suitable and compelling setting/background for the video based on the idea, content, and characters. The setting must be consistent with the overall theme.
-Models/Characters:
-{_models_description(models_json)}
+Models/Characters: {_models_description(models_json)}
+Reference Images: {imagesList if imagesList else '- No reference images'}
 
-Reference Images:
-{imagesList if imagesList else '- No reference images provided.'}
+═══════════════════════════════════════════════════════════════
+✨ ENHANCED TASK INSTRUCTIONS
+═══════════════════════════════════════════════════════════════
 
-Task Instructions:
-1.  Analyze all provided information.
-2.  Break down the video into exactly {sceneCount} distinct scenes for the {duration}-second duration.
-3.  For each scene, provide a concise description in the target language ({languageCode}).
-4.  Create a separate voiceover field containing the dialogue/narration in the target language ({languageCode}). This field MUST include descriptive audio tags in square brackets to guide the text-to-speech model. The tags should also be in the target language if appropriate (e.g., for actions like [cười], [khóc]). This is a critical requirement.
+1. **Analyze** product/service benefits and customer pain points
+2. **Structure** into exactly {sceneCount} high-impact scenes for {duration} seconds
+3. **Craft Hook** (Scene 1): Must be attention-grabbing within 3 seconds
+4. **Build Narrative**: 
+   - Problem → Agitation → Solution → Proof → CTA
+   - Each scene advances the sales journey
+5. **Scene Descriptions**: Concise, visual, emotionally resonant (in {languageCode})
+6. **Voiceover Creation**: CRITICAL REQUIREMENTS
+   - Natural, conversational, persuasive tone
+   - Include audio emotion tags in square brackets
+   - NO robotic product descriptions
+   - Use storytelling language
+   - Create urgency without being pushy
     Available Audio Tags (Adapt these to the target language for the voiceover):
     {{
       "emotion_tags": {{"happy": "[vui vẻ]", "excited": "[hào hứng]", "sad": "[buồn bã]", "angry": "[tức giận]", "surprised": "[ngạc nhiên]", "disappointed": "[thất vọng]", "scared": "[sợ hãi]", "confident": "[tự tin]", "nervous": "[lo lắng]", "crying": "[khóc]", "laughs": "[cười]", "sighs": "[thở dài]"}},
