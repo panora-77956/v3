@@ -2,6 +2,22 @@
 import json, requests
 from services.core.key_manager import get_key
 
+# Constants for validation
+IDEA_RELEVANCE_THRESHOLD = 0.15  # Minimum word overlap ratio (15%)
+MIN_WORD_LENGTH = 3  # Minimum word length for relevance checking (filters out words with <3 chars)
+MAX_IDEA_DISPLAY_LENGTH = 100  # Maximum length for displaying idea in warnings
+
+# Vietnamese character set for language detection
+VIETNAMESE_CHARS = set('àáảãạăằắẳẵặâầấẩẫậèéẻẽẹêềếểễệìíỉĩịòóỏõọôồốổỗộơờớởỡợùúủũụưừứửữựỳýỷỹỵđ')
+
+# Common stop words for relevance checking (Vietnamese and English)
+STOP_WORDS = {
+    'và', 'các', 'của', 'là', 'được', 'có', 'trong', 'cho', 'với', 'để', 
+    'một', 'này', 'đó', 'những', 'như', 'về', 'từ', 'bởi', 'khi', 'sẽ',
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'be', 'been'
+}
+
 def _load_keys():
     """Load keys using unified key manager"""
     gk = get_key('google')
@@ -205,9 +221,31 @@ def _schema_prompt(idea, style_vi, out_lang, n, per, mode):
     # Build language instruction
     language_instruction = f"""
 IMPORTANT LANGUAGE REQUIREMENT:
-- All narration, dialogue, and voice-over MUST be in {target_language}
-- All scene descriptions should match the cultural context of {target_language}
-- Do NOT mix languages unless specifically requested
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌍 TARGET LANGUAGE: {target_language}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**CRITICAL - MUST FOLLOW:**
+1. ALL "text_tgt" fields in dialogues MUST be in {target_language}
+2. ALL "prompt_tgt" fields MUST be in {target_language}
+3. "title_tgt", "outline_tgt", "screenplay_tgt" MUST be in {target_language}
+4. Scene descriptions in "prompt_tgt" should match cultural context of {target_language}
+5. Character names can stay in original form but dialogue MUST be {target_language}
+
+**Example for Vietnamese (vi):**
+  "text_vi": "Xin chào",
+  "text_tgt": "Xin chào"  ← SAME as source
+
+**Example for English (en):**
+  "text_vi": "Xin chào",
+  "text_tgt": "Hello"  ← TRANSLATED to English
+
+**Example for Japanese (ja):**
+  "text_vi": "Xin chào", 
+  "text_tgt": "こんにちは"  ← TRANSLATED to Japanese
+
+⚠️ DO NOT mix languages - stick to {target_language} for ALL target fields!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 """
 
     # Detect if user provided detailed screenplay vs just idea
@@ -232,11 +270,18 @@ IMPORTANT LANGUAGE REQUIREMENT:
 Bạn là **Biên kịch Chuyển đổi Format AI**. Nhận **kịch bản chi tiết** và chuyển đổi thành **format video tối ưu** mà KHÔNG thay đổi nội dung gốc.
 Mục tiêu: GIỮ NGUYÊN câu chuyện và nhân vật, chỉ tối ưu hóa cho video format."""
     else:
-        input_type_instruction = ""
+        input_type_instruction = """
+**QUAN TRỌNG**: Người dùng đã cung cấp Ý TƯỞNG. Nhiệm vụ của bạn:
+1. PHÁT TRIỂN chính xác theo ý tưởng mà người dùng đưa ra
+2. GIỮ NGUYÊN chủ đề, bối cảnh, nhân vật trong ý tưởng gốc
+3. Chỉ thêm chi tiết, cảm xúc, và cấu trúc để tạo kịch bản hoàn chỉnh
+4. KHÔNG thay đổi concept cốt lõi hoặc tạo câu chuyện hoàn toàn khác
+5. Nếu ý tưởng đề cập nhân vật/địa điểm/sự kiện cụ thể → PHẢI xuất hiện trong kịch bản
+"""
         base_role = f"""
 Bạn là **Biên kịch Đa năng AI Cao cấp**. Nhận **ý tưởng thô sơ** và phát triển thành **kịch bản phim/video SIÊU HẤP DẪN**.
-Mục tiêu: TẠO NỘI DUNG VIRAL với engagement cao, giữ chân người xem từ giây đầu tiên."""
-
+Mục tiêu: TẠO NỘI DUNG VIRAL dựa CHÍNH XÁC trên ý tưởng của người dùng, giữ chân người xem từ giây đầu tiên."""
+    
     base_rules = f"""
 {base_role}
 
@@ -375,13 +420,35 @@ Trả về **JSON hợp lệ** theo schema EXACT (không thêm ký tự ngoài J
 - Cảnh 1 PHẢI là HOOK MẠNH (action/shocking/intriguing)
 - Prompts PHẢI visual & cinematic (tránh abstract)
 - Mỗi scene có emotion & story beat rõ ràng
+- QUAN TRỌNG: Kịch bản phải LIÊN QUAN TRỰC TIẾP đến ý tưởng người dùng cung cấp
 """.strip()
 
     # Adjust input label based on detected type
     input_label = "Kịch bản chi tiết" if has_screenplay_markers else "Ý tưởng thô"
+    
+    # Add idea adherence reminder
+    idea_adherence_reminder = ""
+    if not has_screenplay_markers:
+        idea_adherence_reminder = f"""
+⚠️ TUYỆT ĐỐI PHẢI ĐỌC KỸ YÊU CẦU NÀY:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Kịch bản BẮT BUỘC phải xây dựng dựa trên ý tưởng: "{idea}"
+
+- Nếu ý tưởng nhắc đến nhân vật cụ thể (ví dụ: "Bạch Tuyết", "Superman", "Jack") 
+  → Nhân vật ĐÓ phải xuất hiện trong kịch bản
+- Nếu ý tưởng nhắc đến địa điểm (ví dụ: "rừng", "Paris", "trường học") 
+  → Phải đặt câu chuyện ở địa điểm ĐÓ
+- Nếu ý tưởng nhắc đến sự kiện (ví dụ: "cưới", "du lịch", "thi đấu") 
+  → Sự kiện ĐÓ phải là trọng tâm câu chuyện
+- Nếu ý tưởng là câu chuyện cổ tích/nổi tiếng 
+  → Giữ nguyên cốt truyện chính, chỉ điều chỉnh cho phù hợp video format
+
+KHÔNG ĐƯỢC tự ý tạo câu chuyện hoàn toàn khác không liên quan!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
     return f"""{base_rules}
-
+{idea_adherence_reminder}
 ĐẦU VÀO:
 - {input_label}: "{idea}"
 - Phong cách: "{style_vi}"
@@ -573,6 +640,110 @@ def _enforce_character_consistency(scenes, character_bible):
     # Modifying prompts here causes "CHARACTER CONSISTENCY: ..." to appear in voiceover text
     return scenes
 
+def _validate_idea_relevance(idea, generated_content, threshold=0.15):
+    """
+    Validate that the generated content is related to the original idea.
+    
+    This helps catch cases where the LLM generates completely unrelated content.
+    Uses word overlap as a simple but effective similarity metric.
+    
+    Args:
+        idea: Original user idea/concept
+        generated_content: Dict with title, outline, screenplay from LLM
+        threshold: Minimum word overlap ratio (default 0.15 = 15%)
+    
+    Returns:
+        tuple: (is_valid: bool, similarity: float, warning_message: str or None)
+    """
+    if not idea or not generated_content:
+        return True, 0.0, None
+    
+    # Extract key content from generated script
+    title = generated_content.get("title_vi", "") or generated_content.get("title_tgt", "")
+    outline = generated_content.get("outline_vi", "") or generated_content.get("outline_tgt", "")
+    screenplay = generated_content.get("screenplay_vi", "") or generated_content.get("screenplay_tgt", "")
+    
+    # Combine all generated text
+    generated_text = f"{title} {outline} {screenplay}".lower()
+    idea_text = idea.lower()
+    
+    # Extract important words from idea (filter out common stop words)
+    # Use module-level constant for better maintainability
+    idea_words = [w for w in idea_text.split() if len(w) >= MIN_WORD_LENGTH and w not in STOP_WORDS]
+    
+    if not idea_words:
+        return True, 0.0, None  # Can't validate if no meaningful words
+    
+    # Count how many idea words appear in generated content
+    matched_words = [w for w in idea_words if w in generated_text]
+    similarity = len(matched_words) / len(idea_words) if idea_words else 0.0
+    
+    is_valid = similarity >= threshold
+    
+    if not is_valid:
+        # Smart truncation: only add '...' if idea is actually longer than max length
+        idea_display = idea if len(idea) <= MAX_IDEA_DISPLAY_LENGTH else idea[:MAX_IDEA_DISPLAY_LENGTH] + '...'
+        warning = (
+            f"⚠️ CẢNH BÁO: Kịch bản có thể không liên quan đến ý tưởng!\n"
+            f"   Ý tưởng: '{idea_display}'\n"
+            f"   Độ liên quan: {similarity*100:.1f}% (ngưỡng tối thiểu: {threshold*100:.1f}%)\n"
+            f"   Từ khóa trong ý tưởng: {', '.join(idea_words[:10])}\n"
+            f"   Từ khóa xuất hiện: {', '.join(matched_words[:10]) if matched_words else 'Không có'}"
+        )
+        return False, similarity, warning
+    
+    return True, similarity, None
+
+def _validate_dialogue_language(scenes, target_lang):
+    """
+    Validate that dialogue text_tgt fields are in the correct target language.
+    
+    This is a simple heuristic check - we look for signs that dialogues
+    might be in the wrong language (e.g., Vietnamese text when English is expected).
+    
+    Args:
+        scenes: List of scene dicts with dialogues
+        target_lang: Target language code (e.g., 'en', 'ja', 'vi')
+    
+    Returns:
+        tuple: (is_valid: bool, warning_message: str or None)
+    """
+    if not scenes or target_lang == 'vi':
+        # Can't validate Vietnamese or if no scenes
+        return True, None
+    
+    issues = []
+    
+    for scene_idx, scene in enumerate(scenes, 1):
+        dialogues = scene.get("dialogues", [])
+        for dlg_idx, dlg in enumerate(dialogues, 1):
+            if isinstance(dlg, dict):
+                text_tgt = dlg.get("text_tgt", "")
+                if text_tgt:
+                    # Simple heuristic: check for Vietnamese characters using module constant
+                    has_vietnamese = any(c.lower() in VIETNAMESE_CHARS for c in text_tgt)
+                    
+                    # If target is not Vietnamese but text has Vietnamese chars
+                    if has_vietnamese and target_lang != 'vi':
+                        speaker = dlg.get("speaker", "Unknown")
+                        issues.append(
+                            f"Scene {scene_idx}, Dialogue {dlg_idx} ({speaker}): "
+                            f"Contains Vietnamese characters but target language is {LANGUAGE_NAMES.get(target_lang, target_lang)}"
+                        )
+    
+    if issues:
+        warning = (
+            f"⚠️ CẢNH BÁO: Một số lời thoại có thể không đúng ngôn ngữ đích!\n\n"
+            f"Phát hiện {len(issues)} vấn đề:\n" +
+            "\n".join(f"- {issue}" for issue in issues[:5])  # Show first 5
+        )
+        if len(issues) > 5:
+            warning += f"\n... và {len(issues) - 5} vấn đề khác"
+        
+        return False, warning
+    
+    return True, None
+
 def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_key=None, output_lang='vi', domain=None, topic=None, voice_config=None):
     """
     Generate video script with optional domain/topic expertise and voice settings
@@ -629,7 +800,25 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         dup_msg = ", ".join([f"Scene {i} & {j} ({sim*100:.0f}% similar)" for i, j, sim in duplicates])
         print(f"[WARN] Duplicate scenes detected: {dup_msg}")
         # Note: We warn but don't fail - the UI can decide how to handle this
-
+    
+    # ISSUE #3 FIX: Validate idea relevance
+    # Use module-level constant for threshold
+    is_relevant, relevance_score, warning_msg = _validate_idea_relevance(idea, res, threshold=IDEA_RELEVANCE_THRESHOLD)
+    if not is_relevant and warning_msg:
+        print(warning_msg)
+        # Store warning in result so UI can display it to user
+        res["idea_relevance_warning"] = warning_msg
+        res["idea_relevance_score"] = relevance_score
+    else:
+        # Store score for debugging/telemetry
+        res["idea_relevance_score"] = relevance_score
+    
+    # ISSUE #4 FIX: Validate dialogue language consistency
+    dialogue_valid, dialogue_warning = _validate_dialogue_language(scenes, output_lang)
+    if not dialogue_valid and dialogue_warning:
+        print(dialogue_warning)
+        res["dialogue_language_warning"] = dialogue_warning
+    
     # ISSUE #2 FIX: Enforce character consistency
     character_bible = res.get("character_bible", [])
     if character_bible:

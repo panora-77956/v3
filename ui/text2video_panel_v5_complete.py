@@ -56,6 +56,9 @@ except ImportError as e:
 FONT_H2 = QFont("Segoe UI", 15, QFont.Bold)  # +2px, bold
 FONT_BODY = QFont("Segoe UI", 13)
 
+# Warning dialog separator
+WARNING_SEPARATOR = "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+
 class CollapsibleGroupBox(QGroupBox):
     """Collapsible group box"""
     def __init__(self, title="", parent=None, accordion_group=None):
@@ -1052,7 +1055,39 @@ class Text2VideoPanelV5(QWidget):
             data.get("title_tgt") or 
             ctx.get("title")
         )
-
+        
+        # ISSUE #3 FIX: Display warning if generated script doesn't match idea
+        warnings_to_show = []
+        
+        if data.get("idea_relevance_warning"):
+            warning_msg = data.get("idea_relevance_warning")
+            relevance_score = data.get("idea_relevance_score", 0.0)
+            warnings_to_show.append(
+                f"⚠️ KỊCH BẢN KHÔNG KHỚP Ý TƯỞNG:\n{warning_msg}\n\n"
+                f"Đề xuất:\n"
+                f"1. Thử lại với ý tưởng chi tiết hơn\n"
+                f"2. Chọn Domain/Topic phù hợp để cải thiện context\n"
+                f"3. Chỉnh sửa kịch bản trong tab 'Chi tiết kịch bản'\n"
+            )
+        
+        if data.get("dialogue_language_warning"):
+            warnings_to_show.append(
+                f"⚠️ LỜI THOẠI KHÔNG ĐÚNG NGÔN NGỮ:\n{data.get('dialogue_language_warning')}\n\n"
+                f"Đề xuất:\n"
+                f"1. Tạo lại kịch bản với cùng ngôn ngữ đích\n"
+                f"2. Kiểm tra và chỉnh sửa các lời thoại trong tab 'Prompts'\n"
+            )
+        
+        # Display all warnings in a single dialog
+        if warnings_to_show:
+            QMessageBox.warning(
+                self,
+                "⚠️ Cảnh báo về Kịch bản",
+                WARNING_SEPARATOR.join(warnings_to_show) +
+                WARNING_SEPARATOR +
+                "Bạn có thể tiếp tục sử dụng kịch bản này hoặc tạo lại."
+            )
+        
         # Display Bible + Outline + Screenplay
         parts = []
         cb = data.get("character_bible") or []
