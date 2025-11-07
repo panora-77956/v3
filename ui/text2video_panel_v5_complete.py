@@ -43,12 +43,14 @@ try:
         _ASPECT_MAP, _LANGS, _VIDEO_MODELS, _Worker,
         build_prompt_json, get_model_key_from_display, extract_location_context
     )
+    from ui.widgets.scene_result_card import SceneResultCard
 except ImportError as e:
     print(f"⚠️ Import warning: {e}")
     cfg = None
     TTS_PROVIDERS = [("google", "Google TTS")]
     _LANGS = [("Tiếng Việt", "vi"), ("English", "en")]
     _ASPECT_MAP = {"16:9": "VIDEO_ASPECT_RATIO_LANDSCAPE"}
+    SceneResultCard = None
 
 # V5 STYLING
 FONT_H2 = QFont("Segoe UI", 15, QFont.Bold)  # +2px, bold
@@ -792,12 +794,29 @@ class Text2VideoPanelV5(QWidget):
         self.view_stack = QStackedWidget()
         self.view_stack.setStyleSheet("QStackedWidget { background: white; }")  # Enhanced: White bg
         
-        # Card view (existing)
+        # Card view (using SceneResultCard widgets)
+        card_scroll = QScrollArea()
+        card_scroll.setWidgetResizable(True)
+        card_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        card_scroll.setFrameShape(QFrame.NoFrame)
+        
+        card_container = QWidget()
+        self.cards_layout = QVBoxLayout(card_container)
+        self.cards_layout.setContentsMargins(16, 16, 16, 16)
+        self.cards_layout.setSpacing(8)
+        self.cards_layout.addStretch()
+        
+        card_scroll.setWidget(card_container)
+        self.view_stack.addWidget(card_scroll)
+        
+        # Keep reference to scene cards
+        self.scene_cards = []
+        
+        # Keep old QListWidget for backward compatibility (hidden)
         self.cards = QListWidget()
         self.cards.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.cards.setIconSize(QSize(240, 135))
         self.cards.itemDoubleClicked.connect(self._open_card_prompt_detail)
-        self.view_stack.addWidget(self.cards)
         
         # Storyboard view (new)
         self.storyboard_view = StoryboardView(self)
@@ -1067,12 +1086,36 @@ class Text2VideoPanelV5(QWidget):
         self.cards.clear()
         self._cards_state = {}
         
+        # Clear existing scene cards
+        while self.cards_layout.count() > 1:
+            item = self.cards_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        self.scene_cards = []
+        
         for i, sc in enumerate(data.get('scenes', []), 1):
             vi = sc.get('prompt_vi', '')
             tgt = sc.get('prompt_tgt', '')
             self._cards_state[i] = {
                 'vi': vi, 'tgt': tgt, 'thumb': '', 'videos': {}
             }
+            
+            # Create SceneResultCard if available
+            if SceneResultCard:
+                # Prepare scene data for SceneResultCard
+                scene_data = {
+                    'description': vi or tgt,
+                    'desc': vi or tgt,
+                    'speech': '',  # Will be populated when TTS is generated
+                    'voice_over': '',
+                    'prompt_image': vi or tgt,
+                    'prompt_video': tgt or vi
+                }
+                card = SceneResultCard(i, scene_data, alternating_color=(i % 2 == 1))
+                self.cards_layout.insertWidget(i - 1, card)
+                self.scene_cards.append(card)
+            
+            # Also maintain old QListWidget for backward compatibility
             it = QListWidgetItem(self._render_card_text(i))
             it.setData(Qt.UserRole, ('scene', i))
             
@@ -1344,6 +1387,12 @@ class Text2VideoPanelV5(QWidget):
         
         if data.get('thumb') and os.path.isfile(data['thumb']):
             st['thumb'] = data['thumb']
+        
+        # Update SceneResultCard if available
+        if SceneResultCard and scene <= len(self.scene_cards):
+            card = self.scene_cards[scene - 1]
+            if st.get('thumb') and os.path.isfile(st['thumb']):
+                card.set_image_path(st['thumb'])
         
         for i in range(self.cards.count()):
             it = self.cards.item(i)
