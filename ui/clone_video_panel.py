@@ -11,7 +11,8 @@ from PyQt5.QtGui import QFont, QPixmap
 from PyQt5.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
     QPushButton, QComboBox, QSlider, QGroupBox, QScrollArea,
-    QGridLayout, QTextEdit, QFrame, QMessageBox, QProgressBar
+    QGridLayout, QTextEdit, QFrame, QMessageBox, QProgressBar,
+    QSplitter
 )
 
 
@@ -38,6 +39,14 @@ class DownloadWorker(QThread):
             
             service = VideoCloneService(log_callback=self._log)
             
+            # Check dependencies first
+            if not service._yt_dlp_available:
+                self.error.emit(
+                    "yt-dlp is not installed or not found in PATH.\n\n" +
+                    service.get_installation_instructions()
+                )
+                return
+            
             # Download video
             self.progress.emit("📥 Downloading video...")
             video_path = service.download_video(self.url, self.platform)
@@ -58,13 +67,83 @@ class DownloadWorker(QThread):
         except Exception as e:
             import traceback
             # Log full traceback for debugging
-            traceback.print_exc()
+            error_trace = traceback.format_exc()
+            self._log(f"[ERROR] {error_trace}")
             # Emit user-friendly error message
             self.error.emit(str(e))
     
     def _log(self, msg):
         """Log callback"""
         self.progress.emit(msg)
+
+
+class LogViewer(QFrame):
+    """Widget to display processing logs"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFrameStyle(QFrame.Box | QFrame.Sunken)
+        self.setStyleSheet("""
+            LogViewer {
+                background: #1E1E1E;
+                border: 1px solid #333;
+                border-radius: 4px;
+            }
+        """)
+        
+        layout = QVBoxLayout(self)
+        layout.setSpacing(4)
+        layout.setContentsMargins(8, 8, 8, 8)
+        
+        # Title
+        title = QLabel("📋 Processing Logs")
+        title.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        title.setStyleSheet("color: #FFFFFF; background: transparent; border: none;")
+        layout.addWidget(title)
+        
+        # Log text area
+        self.log_text = QTextEdit()
+        self.log_text.setReadOnly(True)
+        self.log_text.setFont(QFont("Consolas", 9))
+        self.log_text.setStyleSheet("""
+            QTextEdit {
+                background: #2D2D2D;
+                color: #D4D4D4;
+                border: 1px solid #444;
+                border-radius: 4px;
+            }
+        """)
+        layout.addWidget(self.log_text)
+        
+        # Clear button
+        clear_btn = QPushButton("Clear Logs")
+        clear_btn.setFont(QFont("Segoe UI", 9))
+        clear_btn.setMaximumWidth(100)
+        clear_btn.setStyleSheet("""
+            QPushButton {
+                background: #3C3C3C;
+                color: white;
+                border: 1px solid #555;
+                border-radius: 4px;
+                padding: 4px;
+            }
+            QPushButton:hover {
+                background: #4A4A4A;
+            }
+        """)
+        clear_btn.clicked.connect(self.clear)
+        layout.addWidget(clear_btn)
+    
+    def append_log(self, message: str):
+        """Append a log message"""
+        self.log_text.append(message)
+        # Auto-scroll to bottom
+        scrollbar = self.log_text.verticalScrollBar()
+        scrollbar.setValue(scrollbar.maximum())
+    
+    def clear(self):
+        """Clear all logs"""
+        self.log_text.clear()
 
 
 class SceneCard(QFrame):
@@ -126,17 +205,32 @@ class CloneVideoPanel(QWidget):
     
     def _init_ui(self):
         """Initialize UI"""
-        main_layout = QHBoxLayout(self)
+        main_layout = QVBoxLayout(self)
         main_layout.setSpacing(16)
         main_layout.setContentsMargins(16, 16, 16, 16)
         
+        # TOP SECTION: Horizontal split between input and results
+        top_splitter = QSplitter(Qt.Horizontal)
+        
         # LEFT SIDE: Input controls
         left_panel = self._create_input_panel()
-        main_layout.addWidget(left_panel, stretch=1)
+        top_splitter.addWidget(left_panel)
         
         # RIGHT SIDE: Results display
         right_panel = self._create_results_panel()
-        main_layout.addWidget(right_panel, stretch=2)
+        top_splitter.addWidget(right_panel)
+        
+        # Set initial sizes (1:2 ratio)
+        top_splitter.setStretchFactor(0, 1)
+        top_splitter.setStretchFactor(1, 2)
+        
+        main_layout.addWidget(top_splitter, stretch=3)
+        
+        # BOTTOM SECTION: Log viewer
+        self.log_viewer = LogViewer()
+        self.log_viewer.setMinimumHeight(150)
+        self.log_viewer.setMaximumHeight(250)
+        main_layout.addWidget(self.log_viewer, stretch=1)
     
     def _create_input_panel(self) -> QWidget:
         """Create left input panel"""
@@ -349,14 +443,21 @@ class CloneVideoPanel(QWidget):
             QMessageBox.warning(self, "Error", "Please enter a URL")
             return
         
+        # Clear previous logs
+        self.log_viewer.clear()
+        self.log_viewer.append_log("[INFO] Starting video clone process...")
+        
         # Validate URL
         from services.video_clone_service import VideoCloneService
-        service = VideoCloneService()
+        service = VideoCloneService(log_callback=self.log_viewer.append_log)
         is_valid, platform, error = service.validate_url(url)
         
         if not is_valid:
+            self.log_viewer.append_log(f"[ERROR] Invalid URL: {error}")
             QMessageBox.warning(self, "Invalid URL", error)
             return
+        
+        self.log_viewer.append_log(f"[INFO] URL validated. Platform: {platform}")
         
         # Get parameters
         platform_map = {"Auto-detect": "auto", "TikTok": "tiktok", "YouTube": "youtube"}
@@ -376,6 +477,8 @@ class CloneVideoPanel(QWidget):
         
         style = self.style_combo.currentText()
         
+        self.log_viewer.append_log(f"[INFO] Settings - Scenes: {num_scenes}, Language: {language}, Style: {style}")
+        
         # Get API key
         api_key = None
         try:
@@ -383,8 +486,9 @@ class CloneVideoPanel(QWidget):
             keys = get_all_keys('google')
             if keys:
                 api_key = keys[0]
+                self.log_viewer.append_log("[INFO] API key loaded successfully")
         except (ImportError, Exception) as e:
-            print(f"Warning: Could not load API key: {e}")
+            self.log_viewer.append_log(f"[WARN] Could not load API key: {e}")
         
         # Start worker
         self.download_btn.setEnabled(False)
@@ -403,12 +507,15 @@ class CloneVideoPanel(QWidget):
     def _on_progress(self, message):
         """Handle progress update"""
         self.status_label.setText(message)
+        # Also log to log viewer
+        self.log_viewer.append_log(message)
     
     def _on_finished(self, results):
         """Handle completion"""
         self.download_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.status_label.setText("✓ Analysis complete!")
+        self.log_viewer.append_log("[INFO] ✓ Analysis complete!")
         
         # Display metadata
         metadata = results.get('metadata', {})
@@ -419,6 +526,7 @@ class CloneVideoPanel(QWidget):
         )
         self.metadata_label.setText(meta_text)
         self.metadata_label.setVisible(True)
+        self.log_viewer.append_log(f"[INFO] Metadata: {meta_text}")
         
         # Display scenes
         self._display_scenes(results)
@@ -434,6 +542,7 @@ class CloneVideoPanel(QWidget):
         self.download_btn.setEnabled(True)
         self.progress_bar.setVisible(False)
         self.status_label.setText(f"❌ Error: {error_msg}")
+        self.log_viewer.append_log(f"[ERROR] {error_msg}")
         QMessageBox.critical(self, "Error", f"Failed to download/analyze video:\n\n{error_msg}")
     
     def _display_scenes(self, results):

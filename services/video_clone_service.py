@@ -8,15 +8,16 @@ import os
 import shutil
 import tempfile
 import subprocess
-from typing import List, Dict, Optional, Set
+from typing import List, Dict, Optional, Set, Callable
 import re
 from urllib.parse import urlparse
+import sys
 
 
 class VideoCloneService:
     """Service to download and analyze videos from social media platforms"""
     
-    def __init__(self, log_callback=None):
+    def __init__(self, log_callback: Optional[Callable] = None):
         """
         Initialize video clone service
         
@@ -25,6 +26,96 @@ class VideoCloneService:
         """
         self.log = log_callback or print
         self._temp_dirs: Set[str] = set()  # Track temp directories we create
+        self._check_dependencies()
+    
+    def _check_dependencies(self):
+        """
+        Check if required dependencies (yt-dlp, ffmpeg) are available
+        Logs warnings but doesn't raise errors during initialization
+        """
+        # Check for yt-dlp
+        yt_dlp_available = False
+        try:
+            result = subprocess.run(
+                ['yt-dlp', '--version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                yt_dlp_available = True
+                self.log(f"[VideoClone] yt-dlp version: {result.stdout.strip()}")
+        except FileNotFoundError:
+            self.log("[VideoClone] WARNING: yt-dlp not found in PATH")
+        except Exception as e:
+            self.log(f"[VideoClone] WARNING: Error checking yt-dlp: {e}")
+        
+        self._yt_dlp_available = yt_dlp_available
+        
+        # Check for ffmpeg
+        ffmpeg_available = False
+        try:
+            result = subprocess.run(
+                ['ffmpeg', '-version'],
+                capture_output=True,
+                text=True,
+                timeout=5
+            )
+            if result.returncode == 0:
+                ffmpeg_available = True
+                # Extract version from first line
+                version_line = result.stdout.split('\n')[0]
+                self.log(f"[VideoClone] {version_line}")
+        except FileNotFoundError:
+            self.log("[VideoClone] WARNING: ffmpeg not found in PATH")
+        except Exception as e:
+            self.log(f"[VideoClone] WARNING: Error checking ffmpeg: {e}")
+        
+        self._ffmpeg_available = ffmpeg_available
+    
+    def get_installation_instructions(self) -> str:
+        """
+        Get installation instructions for missing dependencies
+        
+        Returns:
+            Formatted installation instructions
+        """
+        instructions = []
+        
+        if not self._yt_dlp_available:
+            if sys.platform == 'win32':
+                instructions.append(
+                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "To install yt-dlp on Windows:\n"
+                    "1. Using pip: pip install yt-dlp\n"
+                    "2. Or download from: https://github.com/yt-dlp/yt-dlp/releases\n"
+                    "3. Add yt-dlp.exe to your system PATH\n"
+                )
+            else:
+                instructions.append(
+                    "yt-dlp is not installed or not in PATH.\n\n"
+                    "To install yt-dlp:\n"
+                    "- Using pip: pip install yt-dlp\n"
+                    "- Or visit: https://github.com/yt-dlp/yt-dlp/releases\n"
+                )
+        
+        if not self._ffmpeg_available:
+            if sys.platform == 'win32':
+                instructions.append(
+                    "ffmpeg is not installed or not in PATH.\n\n"
+                    "To install ffmpeg on Windows:\n"
+                    "1. Download from: https://ffmpeg.org/download.html\n"
+                    "2. Extract and add to system PATH\n"
+                )
+            else:
+                instructions.append(
+                    "ffmpeg is not installed or not in PATH.\n\n"
+                    "To install ffmpeg:\n"
+                    "- Ubuntu/Debian: sudo apt-get install ffmpeg\n"
+                    "- macOS: brew install ffmpeg\n"
+                )
+        
+        return "\n".join(instructions)
     
     def download_video(
         self, 
@@ -45,8 +136,17 @@ class VideoCloneService:
         
         Raises:
             ValueError: If URL is invalid
-            RuntimeError: If download fails
+            RuntimeError: If download fails or yt-dlp is not available
         """
+        # Check if yt-dlp is available
+        if not self._yt_dlp_available:
+            error_msg = (
+                "yt-dlp is not installed or not found in system PATH.\n\n"
+                + self.get_installation_instructions()
+            )
+            self.log(f"[VideoClone] ERROR: {error_msg}")
+            raise RuntimeError(error_msg)
+        
         # Validate URL using urlparse
         if not url:
             raise ValueError("URL is empty")
@@ -75,6 +175,7 @@ class VideoCloneService:
         output_template = os.path.join(output_dir, "%(title)s.%(ext)s")
         
         self.log(f"[VideoClone] Downloading from {platform}...")
+        self.log(f"[VideoClone] Output directory: {output_dir}")
         
         try:
             # Build yt-dlp command
@@ -91,6 +192,8 @@ class VideoCloneService:
                 # TikTok specific options
                 cmd.extend(['--user-agent', 'Mozilla/5.0'])
             
+            self.log(f"[VideoClone] Running command: {' '.join(cmd)}")
+            
             # Execute download
             result = subprocess.run(
                 cmd,
@@ -99,8 +202,13 @@ class VideoCloneService:
                 timeout=300  # 5 minutes timeout
             )
             
+            # Log output for debugging
+            if result.stdout:
+                self.log(f"[VideoClone] yt-dlp output: {result.stdout[:500]}")
+            
             if result.returncode != 0:
                 error_msg = result.stderr or result.stdout
+                self.log(f"[VideoClone] ERROR: Download failed: {error_msg}")
                 raise RuntimeError(f"Download failed: {error_msg}")
             
             # Find downloaded file
@@ -119,8 +227,18 @@ class VideoCloneService:
             return video_path
             
         except subprocess.TimeoutExpired:
+            self.log("[VideoClone] ERROR: Download timeout (5 minutes exceeded)")
             raise RuntimeError("Download timeout (5 minutes exceeded)")
+        except FileNotFoundError as e:
+            # This should not happen as we check _yt_dlp_available, but keep as safety
+            error_msg = (
+                "yt-dlp executable not found. Please ensure yt-dlp is installed and in your PATH.\n\n"
+                + self.get_installation_instructions()
+            )
+            self.log(f"[VideoClone] ERROR: {error_msg}")
+            raise RuntimeError(error_msg) from e
         except Exception as e:
+            self.log(f"[VideoClone] ERROR: Download failed: {e}")
             raise RuntimeError(f"Download failed: {e}")
     
     def _detect_platform(self, url: str) -> str:
