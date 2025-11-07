@@ -744,7 +744,7 @@ def _validate_dialogue_language(scenes, target_lang):
     
     return True, None
 
-def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_key=None, output_lang='vi', domain=None, topic=None, voice_config=None):
+def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_key=None, output_lang='vi', domain=None, topic=None, voice_config=None, progress_callback=None):
     """
     Generate video script with optional domain/topic expertise and voice settings
     
@@ -758,19 +758,30 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         domain: Optional domain expertise (e.g., "Marketing & Branding")
         topic: Optional topic within domain (e.g., "Giới thiệu sản phẩm")
         voice_config: Optional voice configuration dict with provider, voice_id, language_code
+        progress_callback: Optional function(message: str, percent: int) for progress updates
     
     Returns:
         Script data dict with scenes, character_bible, etc.
     """
+    def report_progress(msg, percent):
+        """Helper to report progress if callback is provided"""
+        if progress_callback:
+            progress_callback(msg, percent)
+    
+    report_progress("Đang chuẩn bị...", 5)
+    
     gk, ok=_load_keys()
     n, per = _n_scenes(duration_seconds)
     mode = _mode_from_duration(duration_seconds)
+    
+    report_progress("Đang xây dựng prompt...", 10)
 
     # Build base prompt
     prompt=_schema_prompt(idea=idea, style_vi=style, out_lang=output_lang, n=n, per=per, mode=mode)
 
     # Prepend expert intro if domain/topic selected
     if domain and topic:
+        report_progress(f"Đang thêm chuyên môn {domain}...", 15)
         try:
             from services.domain_prompts import build_expert_intro
             # Map language code to vi/en for domain prompts
@@ -785,13 +796,19 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
     if provider.lower().startswith("gemini"):
         key=api_key or gk
         if not key: raise RuntimeError("Chưa cấu hình Google API Key cho Gemini.")
+        report_progress("Đang chờ phản hồi từ Gemini... (có thể mất 1-3 phút)", 25)
         res=_call_gemini(prompt,key,"gemini-2.5-flash")
+        report_progress("Đã nhận phản hồi từ Gemini", 50)
     else:
         key=api_key or ok
         if not key: raise RuntimeError("Chưa cấu hình OpenAI API Key cho GPT-4 Turbo.")
+        report_progress("Đang chờ phản hồi từ OpenAI... (có thể mất 1-3 phút)", 25)
         # FIXED: Use gpt-4-turbo instead of gpt-5
         res=_call_openai(prompt,key,"gpt-4-turbo")
+        report_progress("Đã nhận phản hồi từ OpenAI", 50)
     if "scenes" not in res: raise RuntimeError("LLM không trả về đúng schema.")
+    
+    report_progress("Đang kiểm tra tính duy nhất của các cảnh...", 60)
 
     # ISSUE #1 FIX: Validate scene uniqueness
     scenes = res.get("scenes", [])
@@ -800,6 +817,8 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         dup_msg = ", ".join([f"Scene {i} & {j} ({sim*100:.0f}% similar)" for i, j, sim in duplicates])
         print(f"[WARN] Duplicate scenes detected: {dup_msg}")
         # Note: We warn but don't fail - the UI can decide how to handle this
+    
+    report_progress("Đang kiểm tra độ liên quan của kịch bản...", 70)
     
     # ISSUE #3 FIX: Validate idea relevance
     # Use module-level constant for threshold
@@ -813,11 +832,15 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
         # Store score for debugging/telemetry
         res["idea_relevance_score"] = relevance_score
     
+    report_progress("Đang kiểm tra ngôn ngữ lời thoại...", 75)
+    
     # ISSUE #4 FIX: Validate dialogue language consistency
     dialogue_valid, dialogue_warning = _validate_dialogue_language(scenes, output_lang)
     if not dialogue_valid and dialogue_warning:
         print(dialogue_warning)
         res["dialogue_language_warning"] = dialogue_warning
+    
+    report_progress("Đang tạo character bible...", 80)
     
     # ISSUE #2 FIX: Enforce character consistency
     character_bible = res.get("character_bible", [])
@@ -826,11 +849,17 @@ def generate_script(idea, style, duration_seconds, provider='Gemini 2.5', api_ke
 
     # Store voice configuration in result for consistency
     if voice_config:
+        report_progress("Đang lưu voice config...", 90)
         res["voice_config"] = voice_config
+    
+    report_progress("Đang điều chỉnh thời lượng cảnh...", 95)
 
     # ép durations
     for i,d in enumerate(per):
         if i < len(res["scenes"]): res["scenes"][i]["duration"]=int(d)
+    
+    report_progress("Hoàn tất!", 100)
+    
     return res
 
 

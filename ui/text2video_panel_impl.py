@@ -461,6 +461,7 @@ class _Worker(QObject):
     story_done = pyqtSignal(dict, dict)   # data, context (paths)
     job_card = pyqtSignal(dict)
     job_finished = pyqtSignal()
+    progress_update = pyqtSignal(str, int)  # NEW signal: (message, percent)
 
     def __init__(self, task, payload):
         super().__init__()
@@ -553,6 +554,11 @@ class _Worker(QObject):
                 voice_id=p["voice_id"],
                 language_code=p["out_lang_code"]
             )
+        
+        # NEW: Progress callback to emit both log and progress signals
+        def on_progress(message, percent):
+            self.log.emit(f"[PROGRESS {percent}%] {message}")
+            self.progress_update.emit(message, percent)
 
         # Generate script with voice and domain/topic settings
         data = generate_script(
@@ -563,7 +569,8 @@ class _Worker(QObject):
             output_lang=p["out_lang_code"],
             domain=p.get("domain"),
             topic=p.get("topic"),
-            voice_config=voice_config
+            voice_config=voice_config,
+            progress_callback=on_progress  # NEW: Pass progress callback
         )
         # auto-save to folders
         st = cfg.load()
