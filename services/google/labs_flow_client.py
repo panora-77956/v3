@@ -23,6 +23,12 @@ except Exception:  # pragma: no cover
 
 DEFAULT_PROJECT_ID = "87b19267-13d6-49cd-a7ed-db19a90c9339"
 
+# Prompt length limits for video generation API
+MAX_PROMPT_LENGTH = 5000  # Maximum total prompt length
+MAX_PLAIN_STRING_LENGTH = 4000  # Maximum length for plain string prompts
+MAX_CHARACTER_DETAILS_LENGTH = 1500  # Maximum length for character details when truncating
+MAX_SCENE_DESCRIPTION_LENGTH = 3000  # Maximum length for scene description when truncating
+
 def _headers(bearer: str) -> dict:
     return {
         "authorization": f"Bearer {bearer}",
@@ -65,17 +71,134 @@ def _normalize_status(item: dict) -> str:
     return "PROCESSING"
 
 def _trim_prompt_text(prompt_text: Any)->str:
-    """If prompt is a large JSON string/object, reduce to essential fields to avoid 400 'invalid argument'."""
+    """
+    Extract and build the actual text prompt for video generation from structured prompt data.
+    
+    For new format (with localization, key_action, character_details):
+    - Extracts the actual scene description from key_action or localization.{lang}.prompt
+    - Includes critical consistency information (character_details, hard_locks)
+    - Builds a comprehensive text prompt suitable for video generation
+    
+    For old format (with Objective, Persona, Task_Instructions):
+    - Falls back to legacy extraction logic
+    
+    For plain strings:
+    - Returns as-is if under limit, otherwise intelligently truncates
+    """
+    # Handle string input
     if isinstance(prompt_text, str):
         s=prompt_text.strip()
-        if len(s)<=1800: return s
+        # If it's a reasonable length plain string, use it as-is
+        if len(s)<=MAX_PLAIN_STRING_LENGTH: return s
+        # Try to parse as JSON
         try:
             obj=json.loads(s)
         except Exception:
-            return s[:1800]
+            # Not JSON, just a long string - truncate intelligently at sentence boundary
+            if len(s) <= MAX_PROMPT_LENGTH:
+                return s
+            # Find last period before MAX_PLAIN_STRING_LENGTH chars
+            truncate_at = s.rfind('.', 0, MAX_PLAIN_STRING_LENGTH)
+            if truncate_at > 3000:
+                return s[:truncate_at+1]
+            return s[:MAX_PLAIN_STRING_LENGTH]
     else:
         obj=prompt_text
+    
+    # Handle dictionary/JSON input
     if isinstance(obj, dict):
+        # NEW FORMAT: Check for modern schema with localization, key_action, character_details
+        if "key_action" in obj or "localization" in obj or "character_details" in obj:
+            parts = []
+            
+            # 1. Character consistency (CRITICAL for maintaining same character across scenes)
+            if obj.get("character_details"):
+                parts.append(str(obj["character_details"]))
+            
+            # 2. Location/setting consistency (CRITICAL for maintaining same location)
+            hard_locks = obj.get("hard_locks", {})
+            if isinstance(hard_locks, dict):
+                location_lock = hard_locks.get("location")
+                if location_lock:
+                    parts.append(str(location_lock))
+                # Add identity lock if not already in character_details
+                identity_lock = hard_locks.get("identity")
+                if identity_lock and "character_details" not in obj:
+                    parts.append(str(identity_lock))
+            
+            # 3. Setting details
+            if obj.get("setting_details"):
+                parts.append(str(obj["setting_details"]))
+            
+            # 4. Main scene description - try localization first, then key_action
+            scene_description = ""
+            
+            # Try to get localized prompt (preferred)
+            localization = obj.get("localization", {})
+            if isinstance(localization, dict):
+                # Try to find the best language match
+                # Priority: vi (Vietnamese) > en (English) > first available
+                for lang in ["vi", "en"]:
+                    if lang in localization:
+                        lang_data = localization[lang]
+                        if isinstance(lang_data, dict) and "prompt" in lang_data:
+                            scene_description = str(lang_data["prompt"])
+                            break
+                
+                # If still no description, use first available language
+                if not scene_description:
+                    for lang_data in localization.values():
+                        if isinstance(lang_data, dict) and "prompt" in lang_data:
+                            scene_description = str(lang_data["prompt"])
+                            break
+            
+            # Fallback to key_action if no localized prompt found
+            if not scene_description and obj.get("key_action"):
+                scene_description = str(obj["key_action"])
+            
+            if scene_description:
+                parts.append(scene_description)
+            
+            # 5. Camera direction hints (keep it brief)
+            camera_dir = obj.get("camera_direction", [])
+            if isinstance(camera_dir, list) and camera_dir:
+                # Just include the first and last camera hints for brevity
+                try:
+                    first_shot = camera_dir[0].get("shot", "") if isinstance(camera_dir[0], dict) else ""
+                    last_shot = camera_dir[-1].get("shot", "") if isinstance(camera_dir[-1], dict) else ""
+                    if first_shot or last_shot:
+                        parts.append(f"Camera: {first_shot}; End: {last_shot}")
+                except (IndexError, AttributeError):
+                    pass
+            
+            # Combine all parts
+            text = "\n\n".join([p for p in parts if p])
+            
+            # If still too long (>MAX_PROMPT_LENGTH chars), prioritize scene description
+            if len(text) > MAX_PROMPT_LENGTH:
+                # Keep: character_details + location_lock + scene_description
+                priority_parts = []
+                if obj.get("character_details"):
+                    # Truncate character_details if very long
+                    char_details = str(obj["character_details"])
+                    if len(char_details) > MAX_CHARACTER_DETAILS_LENGTH:
+                        char_details = char_details[:MAX_CHARACTER_DETAILS_LENGTH] + "..."
+                    priority_parts.append(char_details)
+                
+                if hard_locks and hard_locks.get("location"):
+                    priority_parts.append(str(hard_locks["location"]))
+                
+                if scene_description:
+                    # Preserve full scene description, truncate if needed
+                    if len(scene_description) > MAX_SCENE_DESCRIPTION_LENGTH:
+                        scene_description = scene_description[:MAX_SCENE_DESCRIPTION_LENGTH]
+                    priority_parts.append(scene_description)
+                
+                text = "\n\n".join(priority_parts)
+            
+            return text
+        
+        # OLD FORMAT: Legacy extraction for backward compatibility
         parts=[]
         if obj.get("Objective"): parts.append(str(obj["Objective"]))
         per=obj.get("Persona") or {}
@@ -89,11 +212,21 @@ def _trim_prompt_text(prompt_text: Any)->str:
         if isinstance(cons, list):
             parts+= [str(x) for x in cons][:4]
         text=" | ".join([p for p in parts if p])
-        if text: return text[:1800]
+        if text: return text
+    
+    # Fallback: convert to JSON string and return (with reasonable limit)
     try:
-        return json.dumps(obj, ensure_ascii=False)[:1800]
+        result = json.dumps(obj, ensure_ascii=False)
+        if len(result) <= MAX_PROMPT_LENGTH:
+            return result
+        # If too long, try to extract just the essential fields
+        if isinstance(obj, dict):
+            essential = {k: v for k, v in obj.items() if k in ["key_action", "character_details", "setting_details"]}
+            if essential:
+                return json.dumps(essential, ensure_ascii=False)
+        return result[:MAX_PROMPT_LENGTH]
     except Exception:
-        return str(obj)[:1800]
+        return str(obj)[:MAX_PROMPT_LENGTH]
 
 class LabsFlowClient:
     """
