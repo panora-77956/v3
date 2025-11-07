@@ -119,13 +119,12 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 "\n- NO live action or real people"
                 "\n- NO Disney/Pixar 3D style"
             )
+            # Check if cinematic is also present with anime
+            if "cinematic" in style_lower:
+                style_directive += "\n\nCinematic anime style - still 2D animated, NOT live action."
         elif "realistic" in style_lower or "cinematic" in style_lower:
             # Only use realistic if NOT anime
-            if "anime" not in style_lower:
-                style_directive += "\n\nFilm-like realistic quality with cinematic lighting."
-            else:
-                # Anime + cinematic = still anime, just more dramatic
-                style_directive += "\n\nCinematic anime style - still 2D animated, NOT live action."
+            style_directive += "\n\nFilm-like realistic quality with cinematic lighting."
         
         sections.append(style_directive)
     
