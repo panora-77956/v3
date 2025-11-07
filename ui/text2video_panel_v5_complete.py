@@ -1243,15 +1243,18 @@ class Text2VideoPanelV5(QWidget):
         # Auto-generate social and thumbnail
         self._auto_generate_social_and_thumbnail(data)
 
+        # Populate storyboard view with scenes immediately
+        self._refresh_storyboard()
+        
+        # Switch to "Kết quả cảnh" tab to show results
+        self.result_tabs.setCurrentIndex(2)  # Tab index 2 = "🎬 Kết quả cảnh"
+
         # If in auto mode, proceed to step 2
         if self.btn_stop.isEnabled():
             self._append_log("[INFO] Bước 2/3: Bắt đầu tạo video...")
             self._on_create_video_clicked()
         else:
             self.btn_auto.setEnabled(True)
-            # Enhanced: Auto-switch to Storyboard view
-            if hasattr(self, '_switch_view'):
-                self._switch_view('storyboard')
 
     def _on_create_video_clicked(self):
         """Create videos from script"""
