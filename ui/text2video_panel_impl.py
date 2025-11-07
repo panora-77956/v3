@@ -457,7 +457,11 @@ class _Worker(QObject):
             elif self.task == "video":
                 self._run_video()
         except Exception as e:
-            self.log.emit(f"[ERR] {e}")
+            # Include traceback for better debugging
+            import traceback
+            error_details = traceback.format_exc()
+            self.log.emit(f"[ERR] Worker error: {e}")
+            self.log.emit(f"[DEBUG] {error_details}")
         finally:
             # BUG FIX: Emit finished signal for both script and video tasks
             # This ensures UI buttons are re-enabled and thread is cleaned up
@@ -812,12 +816,26 @@ class _Worker(QObject):
 
             if jobs:
                 poll_info = f"vòng {poll_round + 1}/120"
-                self.log.emit(f"[INFO] Đang chờ {len(jobs)} video ({poll_info})...")
+                # Warn if approaching timeout
+                if poll_round >= 100:
+                    self.log.emit(f"[WARN] Đang chờ {len(jobs)} video ({poll_info}) - sắp hết thời gian chờ!")
+                else:
+                    self.log.emit(f"[INFO] Đang chờ {len(jobs)} video ({poll_info})...")
                 try:
                     import time
                     time.sleep(5)
                 except Exception:
                     pass
+        
+        # If we exit the loop with remaining jobs, they timed out
+        if jobs:
+            self.log.emit(f"[WARN] Hết thời gian chờ, còn {len(jobs)} video chưa hoàn thành")
+            for job_info in jobs:
+                card = job_info['card']
+                if card.get("status") == "PROCESSING":
+                    card["status"] = "TIMEOUT"
+                    card["error_reason"] = "Quá thời gian chờ (timeout)"
+                    self.job_card.emit(card)
 
         # 4K upscale
 
@@ -1184,8 +1202,22 @@ class _Worker(QObject):
             jobs = [job for job_list in client_jobs.values() for job in job_list]
             
             if jobs:
-                self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
+                # Warn if approaching timeout
+                if poll_round >= 100:
+                    self.log.emit(f"[WARN] Waiting for {len(jobs)} videos (round {poll_round + 1}/120) - approaching timeout!")
+                else:
+                    self.log.emit(f"[INFO] Waiting for {len(jobs)} videos (round {poll_round + 1}/120)...")
                 time.sleep(5)
+        
+        # If we exit the loop with remaining jobs, they timed out
+        if jobs:
+            self.log.emit(f"[WARN] Polling timeout reached, {len(jobs)} videos still processing")
+            for job_info in jobs:
+                card = job_info['card']
+                if card.get("status") == "PROCESSING":
+                    card["status"] = "TIMEOUT"
+                    card["error_reason"] = "Polling timeout (quá thời gian chờ)"
+                    self.job_card.emit(card)
         
         # 4K upscale if requested
         if up4k and shutil.which("ffmpeg"):
