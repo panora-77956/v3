@@ -398,7 +398,11 @@ class Text2VideoPanelV5(QWidget):
         self.cb_style.setMinimumHeight(32)
         self.cb_style.addItems([
             "Điện ảnh (Cinematic)", "Anime", "Tài liệu",
-            "Quay thực", "3D/CGI", "Stop-motion"
+            "Quay thực", "3D/CGI", "Stop-motion",
+            "Vlog cá nhân", "Review/Unboxing", "Tutorial/Hướng dẫn",
+            "Phim ngắn", "Quảng cáo TVC", "Music Video",
+            "Phóng sự", "Sitcom/Hài kịch", "Horror/Kinh dị",
+            "Sci-Fi/Khoa học viễn tưởng", "Fantasy/Phép thuật"
         ])
         row1.addWidget(self.cb_style, 1)
         
@@ -996,11 +1000,18 @@ class Text2VideoPanelV5(QWidget):
         self.thread.started.connect(self.worker.run)
         self.worker.log.connect(self._append_log)
         
+        # BUG FIX: Connect job_finished for both tasks to ensure proper cleanup
+        self.worker.job_finished.connect(self._on_worker_finished)
+        
         if task == "script":
             self.worker.story_done.connect(self._on_story_ready)
         else:
             self.worker.job_card.connect(self._on_job_card)
-            self.worker.job_finished.connect(self._on_worker_finished)
+        
+        # BUG FIX: Add thread cleanup
+        self.worker.job_finished.connect(self.thread.quit)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.job_finished.connect(self.worker.deleteLater)
         
         self.thread.start()
     
