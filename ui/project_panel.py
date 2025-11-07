@@ -169,7 +169,7 @@ class CheckWorker(QObject):
         
         self.progress.emit(0, "Đang check…")
         try:
-            rs=self.client.batch_check_operations(names, metadata if metadata else None)
+            rs=self.client.batch_check_operations(names, metadata or None)
         except Exception as e:
             self.log.emit("ERR", f"Check lỗi: {e.__class__.__name__}: {e}"); self.finished.emit(); return
         total=max(1,len(self.jobs)); done=0
