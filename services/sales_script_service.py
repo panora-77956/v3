@@ -6,9 +6,56 @@ from services.gemini_client import GeminiClient
 
 logger = logging.getLogger(__name__)
 
+def _fix_json_formatting(text: str) -> str:
+    """
+    Apply comprehensive JSON formatting fixes for common LLM errors.
+    
+    Args:
+        text: JSON string to fix
+        
+    Returns:
+        Fixed JSON string
+    """
+    # Fix missing commas between JSON properties (common LLM error)
+    # Pattern 1: "value" followed by "key" without comma
+    text = re.sub(r'"\s+"', '", "', text)
+    
+    # Pattern 2: number/boolean/null followed by "key" without comma
+    # Handles cases like: 1 "desc" -> 1, "desc"
+    text = re.sub(r'(\d+|true|false|null)(\s+)"', r'\1, "', text)
+    
+    # Pattern 3: closing ] or } followed by "key" without comma
+    # Handles cases like: ] "key" -> ], "key" or } "key" -> }, "key"
+    text = re.sub(r'(]|})(\s+)"', r'\1, "', text)
+    
+    # Fix missing commas between objects in arrays: }{ -> },{
+    text = re.sub(r'\}\s*\{', '}, {', text)
+    
+    # Fix missing commas: ]{ -> ],[
+    text = re.sub(r'\]\s*\{', '], {', text)
+    
+    # Fix missing commas: }[ -> },[
+    text = re.sub(r'\}\s*\[', '}, [', text)
+    
+    # Remove duplicate commas: ,, -> ,
+    text = re.sub(r',\s*,', ',', text)
+    
+    # Remove trailing commas before } or ]
+    text = re.sub(r',(\s*[}\]])', r'\1', text)
+    
+    return text
+
 def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str, Any]:
     """
     Robust JSON parser with 5 fallback strategies to handle malformed LLM responses.
+    
+    Handles common LLM formatting errors including:
+    - Missing commas between properties
+    - Missing commas between objects in arrays
+    - Trailing commas
+    - Duplicate commas
+    - Markdown code blocks
+    - Single quotes instead of double quotes
     
     Args:
         response_text: Raw text response from LLM
@@ -61,8 +108,8 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
         if "'" in cleaned and cleaned.count("'") > cleaned.count('"'):
             cleaned = cleaned.replace("'", '"')
 
-        # Remove trailing commas before } or ]
-        cleaned = re.sub(r',(\s*[}\]])', r'\1', cleaned)
+        # Apply comprehensive JSON formatting fixes
+        cleaned = _fix_json_formatting(cleaned)
 
         return json.loads(cleaned)
     except json.JSONDecodeError as e:
@@ -81,8 +128,8 @@ def parse_llm_response_safe(response_text: str, source: str = "LLM") -> Dict[str
             try:
                 return json.loads(json_str)
             except json.JSONDecodeError:
-                # Apply fixes from strategy 3
-                json_str = re.sub(r',(\s*[}\]])', r'\1', json_str)
+                # Apply comprehensive JSON formatting fixes
+                json_str = _fix_json_formatting(json_str)
                 return json.loads(json_str)
     except json.JSONDecodeError as e:
         logger.debug(f"{source} Strategy 4 failed (boundary extraction): {e}")
