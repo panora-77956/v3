@@ -171,6 +171,10 @@ class ParallelSeqWorker(QObject):
                         project_id=self.project_id
                     )
 
+                    # CRITICAL FIX: Store account name so CheckWorker can use correct client
+                    # Each operation must be checked with the same account that created it
+                    job["account_name"] = account.name
+
                     self.log.emit("HTTP", f"{thread_name}: START OK -> {rc} ref(s)")
 
                     # Queue update

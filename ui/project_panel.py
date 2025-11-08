@@ -155,10 +155,11 @@ class SeqWorker(QObject):
 
 class CheckWorker(QObject):
     log = pyqtSignal(str,str); progress = pyqtSignal(int, str); row_update = pyqtSignal(int, dict); finished = pyqtSignal()
-    def __init__(self, client, jobs):
+    def __init__(self, client, jobs, account_mgr=None):
         super().__init__()
         self.client=client
         self.jobs=jobs
+        self.account_mgr=account_mgr
     def run(self):
         names=[n for j in self.jobs for n in j.get("operation_names",[])]
         if not names: self.log.emit("INFO","[Check] chưa có operation."); self.finished.emit(); return
@@ -171,10 +172,65 @@ class CheckWorker(QObject):
                 metadata.update(op_meta)
         
         self.progress.emit(0, "Đang check…")
+        
+        # CRITICAL FIX: Handle multi-account checking
+        # Each operation must be checked with the same account that created it
+        # Otherwise Google API returns 401 Unauthorized
+        rs = {}
         try:
-            rs=self.client.batch_check_operations(names, metadata)
+            # Check if jobs have account tracking (from parallel mode)
+            has_account_tracking = any(j.get("account_name") for j in self.jobs)
+            
+            if has_account_tracking and self.account_mgr:
+                # Multi-account mode: Group operations by account and check separately
+                from services.google.labs_flow_client import LabsFlowClient
+                
+                # Group jobs by account
+                jobs_by_account = {}
+                for j in self.jobs:
+                    acc_name = j.get("account_name")
+                    if acc_name:
+                        if acc_name not in jobs_by_account:
+                            jobs_by_account[acc_name] = []
+                        jobs_by_account[acc_name].append(j)
+                
+                # Check each account's operations with its own client
+                for acc_name, account_jobs in jobs_by_account.items():
+                    # Find the account
+                    account = None
+                    for acc in self.account_mgr.get_all_accounts():
+                        if acc.name == acc_name:
+                            account = acc
+                            break
+                    
+                    if not account:
+                        self.log.emit("WARN", f"Account {acc_name} not found, skipping")
+                        continue
+                    
+                    # Create client for this account
+                    account_client = LabsFlowClient(account.tokens, on_event=None)
+                    
+                    # Collect operations and metadata for this account
+                    account_names = [n for j in account_jobs for n in j.get("operation_names", [])]
+                    account_metadata = {}
+                    for j in account_jobs:
+                        op_meta = j.get("operation_metadata", {})
+                        if op_meta:
+                            account_metadata.update(op_meta)
+                    
+                    # Check this account's operations
+                    if account_names:
+                        try:
+                            account_rs = account_client.batch_check_operations(account_names, account_metadata)
+                            rs.update(account_rs)
+                        except Exception as e:
+                            self.log.emit("ERR", f"Check lỗi cho {acc_name}: {e.__class__.__name__}: {e}")
+            else:
+                # Single-account mode (backward compatibility)
+                rs=self.client.batch_check_operations(names, metadata)
         except Exception as e:
             self.log.emit("ERR", f"Check lỗi: {e.__class__.__name__}: {e}"); self.finished.emit(); return
+        
         total=max(1,len(self.jobs)); done=0
         for idx,j in enumerate(self.jobs):
             found=False
@@ -648,7 +704,9 @@ class ProjectPanel(QWidget):
 
     def _check(self):
         if not getattr(self,"client",None) or not self.jobs: return
-        self._t2=QThread(self); self._w2=CheckWorker(self.client,self.jobs); self._w2.moveToThread(self._t2)
+        from services.account_manager import get_account_manager
+        account_mgr = get_account_manager()
+        self._t2=QThread(self); self._w2=CheckWorker(self.client,self.jobs,account_mgr); self._w2.moveToThread(self._t2)
         self._t2.started.connect(self._w2.run); self._w2.progress.connect(self._on_prog); self._w2.row_update.connect(self._refresh_row)
         self._w2.log.connect(lambda lv,msg: getattr(self.console, lv.lower())(msg) if hasattr(self.console, lv.lower()) else self.console.info(msg))
         def on_finished():
