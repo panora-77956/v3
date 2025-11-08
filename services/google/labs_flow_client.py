@@ -474,7 +474,7 @@ class LabsFlowClient:
             try: self.on_event({"kind":kind, **kw})
             except Exception: pass
 
-    def _post(self, url: str, payload: dict) -> dict:
+    def _post(self, url: str, payload: dict, suppress_error_logging: bool = False) -> dict:
         last=None
         # Calculate available tokens and max attempts
         # Note: We don't directly iterate over tokens_to_try, instead we use round-robin
@@ -554,7 +554,12 @@ class LabsFlowClient:
                 det=""
                 try: det=r.json().get("error",{}).get("message","")[:300]
                 except Exception: det=(r.text or "")[:300]
-                self._emit("http_other_err", code=r.status_code, detail=det); r.raise_for_status()
+                
+                # Only emit error if not suppressed (for retry attempts)
+                if not suppress_error_logging:
+                    self._emit("http_other_err", code=r.status_code, detail=det)
+                
+                r.raise_for_status()
             except requests.HTTPError as e:
                 error_msg = str(e).lower()
                 # Check if it's a 401 in the exception message
@@ -730,9 +735,9 @@ class LabsFlowClient:
             
             return body
 
-        def _try(body):
+        def _try(body, suppress_errors=False):
             url=I2V_URL if mid else T2V_URL
-            return self._post(url, body) or {}
+            return self._post(url, body, suppress_error_logging=suppress_errors) or {}
 
         def _is_invalid(e: Exception)->bool:
             s=str(e).lower()
@@ -744,10 +749,13 @@ class LabsFlowClient:
             return ("401" in str(e)) or ("unauthorized" in s) or ("authentication" in s and "invalid" in s)
 
         # 1) Try batch with model fallbacks
+        # Suppress error logging during retries - only log final failure
         data=None; last_err=None
-        for mkey in models:
+        for idx, mkey in enumerate(models):
+            is_last_model = (idx == len(models) - 1)
             try:
-                data=_try(_make_body(mkey, mid, copies))
+                # Suppress error logging for intermediate attempts, allow logging on last attempt
+                data=_try(_make_body(mkey, mid, copies), suppress_errors=(not is_last_model))
                 last_err=None; break
             except Exception as e:
                 last_err=e
@@ -765,9 +773,12 @@ class LabsFlowClient:
                 new_mid=self.upload_image_file(job["image_path"])
                 if new_mid:
                     job["media_id"]=new_mid; mid=new_mid
-                    for mkey in models:
+                    for idx, mkey in enumerate(models):
+                        is_last_model = (idx == len(models) - 1)
                         try:
-                            data=_try(_make_body(mkey, mid, copies)); last_err=None; break
+                            # Suppress error logging for intermediate attempts
+                            data=_try(_make_body(mkey, mid, copies), suppress_errors=(not is_last_model))
+                            last_err=None; break
                         except Exception as e2:
                             last_err=e2
                             # Stop on auth errors
@@ -792,9 +803,11 @@ class LabsFlowClient:
                 raise last_err
             
             for k in range(copies):
-                for mkey in models:
+                for idx, mkey in enumerate(models):
+                    is_last_model = (idx == len(models) - 1)
                     try:
-                        dat=_try(_make_body(mkey, mid, 1))
+                        # Suppress error logging for intermediate attempts
+                        dat=_try(_make_body(mkey, mid, 1), suppress_errors=(not is_last_model))
                         ops=dat.get("operations",[]) if isinstance(dat,dict) else []
                         if ops:
                             nm=(ops[0].get("operation") or {}).get("name") or ops[0].get("name") or ""
