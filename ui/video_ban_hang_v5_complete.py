@@ -1478,6 +1478,11 @@ class VideoBanHangV5(QWidget):
             for i, scene in enumerate(scenes):
                 scene_idx = scene.get("index", i + 1)
                 card = SceneResultCard(scene_idx, scene, alternating_color=(i % 2 == 1))
+
+                # Connect scene card signals to handlers
+                card.recreate_requested.connect(self._on_scene_recreate_image)
+                card.generate_video_requested.connect(self._on_scene_generate_video)
+
                 self.scenes_layout.insertWidget(i, card)
                 self.scene_cards.append(card)
                 self.scene_images[scene_idx] = {"card": card, "path": None}
@@ -1602,6 +1607,167 @@ class VideoBanHangV5(QWidget):
         # if video_path and self.chk_auto_download and self.chk_auto_download.isChecked():
         #     self._auto_download_video(video_path)
 
+    def _on_scene_recreate_image(self, scene_idx):
+        """Recreate image for a specific scene (triggered by scene card button)"""
+        if not self.cache["outline"]:
+            QMessageBox.warning(self, "Chưa có kịch bản", "Vui lòng viết kịch bản trước.")
+            return
+
+        cfg = self._collect_cfg()
+        use_whisk = cfg.get("image_model") == "Whisk"
+        model_paths = cfg.get("model_paths", [])
+
+        self._append_log(f"🔄 Tạo lại ảnh cho cảnh {scene_idx}...")
+
+        # Find the scene data
+        scenes = self.cache["outline"].get("scenes", [])
+        target_scene = None
+        for scene in scenes:
+            if scene.get("index") == scene_idx:
+                target_scene = scene
+                break
+
+        if not target_scene:
+            QMessageBox.warning(self, "Lỗi", f"Không tìm thấy cảnh {scene_idx}")
+            return
+
+        # Get character bible
+        character_bible = self.cache.get("character_bible")
+
+        # Create a single-scene image worker
+        from services.account_manager import get_account_manager
+        account_mgr = get_account_manager()
+
+        # Create a temporary outline with only this scene
+        temp_outline = {"scenes": [target_scene]}
+
+        self.img_worker = ImageGenerationWorker(
+            temp_outline, cfg, model_paths,
+            self.prod_paths, use_whisk, character_bible,
+            account_mgr=account_mgr
+        )
+
+        self.img_worker.progress.connect(self._append_log)
+        self.img_worker.scene_image_ready.connect(self._on_scene_image_ready)
+        self.img_worker.finished.connect(lambda success: self._on_single_scene_image_finished(success, scene_idx))
+
+        self.img_worker.start()
+
+    def _on_single_scene_image_finished(self, success, scene_idx):
+        """Callback when single scene image generation finishes"""
+        if success:
+            self._append_log(f"✓ Hoàn tất tạo lại ảnh cảnh {scene_idx}")
+        else:
+            self._append_log(f"❌ Có lỗi khi tạo lại ảnh cảnh {scene_idx}")
+
+    def _on_scene_generate_video(self, scene_idx):
+        """Generate video for a specific scene (triggered by scene card button)"""
+        if not self.cache["outline"]:
+            QMessageBox.warning(self, "Chưa có kịch bản", "Vui lòng viết kịch bản trước.")
+            return
+
+        # Check if this scene has an image
+        if scene_idx not in self.cache.get("scene_images", {}):
+            QMessageBox.warning(
+                self, "Chưa có ảnh",
+                f"Cảnh {scene_idx} chưa có ảnh. Vui lòng tạo ảnh trước."
+            )
+            return
+
+        cfg = self._collect_cfg()
+
+        # Find the scene data
+        scenes = self.cache["outline"].get("scenes", [])
+        target_scene = None
+        for scene in scenes:
+            if scene.get("index") == scene_idx:
+                target_scene = scene
+                break
+
+        if not target_scene:
+            QMessageBox.warning(self, "Lỗi", f"Không tìm thấy cảnh {scene_idx}")
+            return
+
+        self._append_log(f"🎬 Bắt đầu tạo video cho cảnh {scene_idx}...")
+
+        # Get video prompt
+        video_prompt = target_scene.get("prompt_video", "")
+        if not video_prompt:
+            QMessageBox.warning(
+                self, "Thiếu prompt",
+                f"Cảnh {scene_idx} không có prompt video"
+            )
+            return
+
+        # Get aspect ratio from config
+        aspect_ratio = cfg.get("ratio", "9:16")
+
+        # Map aspect ratio to API format
+        aspect_map = {
+            "9:16": "VIDEO_ASPECT_RATIO_PORTRAIT",
+            "16:9": "VIDEO_ASPECT_RATIO_LANDSCAPE",
+            "1:1": "VIDEO_ASPECT_RATIO_SQUARE"
+        }
+        aspect_api = aspect_map.get(aspect_ratio, "VIDEO_ASPECT_RATIO_PORTRAIT")
+
+        # Get project name for output directory
+        project_name = cfg.get("project_name", "default")
+        if svc:
+            dirs = svc.ensure_project_dirs(project_name)
+            dir_videos = str(dirs["video"])
+        else:
+            dir_videos = str(Path.home() / "Downloads" / project_name / "Video")
+            Path(dir_videos).mkdir(parents=True, exist_ok=True)
+
+        # Prepare payload for video worker
+        payload = {
+            "scenes": [{
+                "prompt": video_prompt,
+                "aspect": aspect_api
+            }],
+            "copies": 1,
+            "model_key": "veo_3_1_t2v_fast_ultra",  # Default model
+            "title": f"{project_name}_scene{scene_idx}",
+            "dir_videos": dir_videos,
+            "upscale_4k": False,
+            "auto_download": True,
+            "quality": "1080p"
+        }
+
+        # Import and create video worker
+        try:
+            from ui.workers.video_worker import VideoGenerationWorker
+
+            # Create worker
+            self.video_worker = VideoGenerationWorker(payload)
+
+            # Connect signals
+            self.video_worker.log.connect(self._append_log)
+            self.video_worker.scene_completed.connect(
+                lambda scene, path: self._on_single_scene_video_completed(scene_idx, path)
+            )
+            self.video_worker.error_occurred.connect(
+                lambda err: self._append_log(f"❌ Lỗi tạo video cảnh {scene_idx}: {err}")
+            )
+
+            # Start worker
+            self.video_worker.start()
+
+        except ImportError as e:
+            self._append_log(f"❌ Không thể import VideoGenerationWorker: {e}")
+            QMessageBox.warning(
+                self, "Lỗi",
+                "Không thể khởi động video generation worker"
+            )
+
+    def _on_single_scene_video_completed(self, scene_idx, video_path):
+        """Callback when single scene video generation completes"""
+        self._append_log(f"✓ Hoàn tất tạo video cảnh {scene_idx}: {video_path}")
+
+        # Auto-download if enabled
+        if self.chk_auto_download and self.chk_auto_download.isChecked():
+            self._auto_download_video(video_path)
+
     def stop_processing(self):
         """Stop all workers"""
         if hasattr(self, "script_worker") and self.script_worker:
@@ -1644,7 +1810,7 @@ class VideoBanHangV5(QWidget):
     def _auto_download_video(self, source_path):
         """
         Copy video to download folder and open folder
-        
+
         Args:
             source_path (str): Path to the source video file to download
         """
@@ -1686,7 +1852,7 @@ class VideoBanHangV5(QWidget):
     def _open_folder(self, folder_path):
         """
         Open folder in file explorer
-        
+
         Args:
             folder_path (Path): Path object or string path to the folder to open
         """
