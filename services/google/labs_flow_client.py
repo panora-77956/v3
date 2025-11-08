@@ -92,7 +92,45 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     sections = []
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 0: VOICEOVER LANGUAGE (TOP PRIORITY - MUST BE FIRST!)
+    # SECTION 0A: CHARACTER IDENTITY LOCK (CoT + RCoT - ABSOLUTE TOP!)
+    # Issue #41: Extremely detailed character descriptions MUST be first
+    # for maximum consistency across all scenes in multi-scene videos
+    # ═══════════════════════════════════════════════════════════════
+    character_details = prompt_data.get("character_details", "")
+    if character_details and "CRITICAL" in character_details:
+        # Extract character names and details for identity lock
+        identity_lock = (
+            "╔═══════════════════════════════════════════════════════════╗\n"
+            "║  CHARACTER IDENTITY LOCK (CoT + RCoT TECHNIQUE)          ║\n"
+            "║  THIS SECTION MUST NEVER BE IGNORED OR MODIFIED          ║\n"
+            "╚═══════════════════════════════════════════════════════════╝\n\n"
+            f"{character_details}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "NEVER CHANGE DIRECTIVES (10 CRITICAL RULES):\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1. NEVER change character facial features (eyes, nose, mouth, face shape)\n"
+            "2. NEVER change character hairstyle, hair color, or hair length\n"
+            "3. NEVER change character outfit, clothing colors, or accessories\n"
+            "4. NEVER change character body type, height, or build\n"
+            "5. NEVER change character skin tone or complexion\n"
+            "6. NEVER add or remove character accessories (jewelry, glasses, etc.)\n"
+            "7. NEVER change character age or apparent age\n"
+            "8. NEVER swap characters with different people\n"
+            "9. NEVER modify character proportions or physical characteristics\n"
+            "10. NEVER introduce new characters not listed above\n\n"
+            "CONSISTENCY ENFORCEMENT:\n"
+            "✓ Use EXACT SAME character appearance in ALL scenes\n"
+            "✓ Maintain IDENTICAL visual identity across entire video\n"
+            "✓ Keep ALL physical features UNCHANGED throughout\n"
+            "✓ Preserve character design from scene 1 to final scene\n"
+            "╔═══════════════════════════════════════════════════════════╗\n"
+            "║  END OF CHARACTER IDENTITY LOCK                          ║\n"
+            "╚═══════════════════════════════════════════════════════════╝"
+        )
+        sections.append(identity_lock)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 0B: VOICEOVER LANGUAGE (TOP PRIORITY)
     # ═══════════════════════════════════════════════════════════════
     audio = prompt_data.get("audio", {})
     if isinstance(audio, dict):
@@ -175,11 +213,14 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         sections.append(style_directive)
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 2: CHARACTER CONSISTENCY (existing, unchanged)
+    # SECTION 2: CHARACTER CONSISTENCY
+    # Note: Main character details now in IDENTITY LOCK at top (Issue #41)
+    # This section kept for backward compatibility with non-critical characters
     # ═══════════════════════════════════════════════════════════════
-    character_details = prompt_data.get("character_details", "")
-    if character_details:
-        sections.append(f"CHARACTER CONSISTENCY:\n{character_details}")
+    # Skip if already added to IDENTITY LOCK section
+    character_details_backup = prompt_data.get("character_details", "")
+    if character_details_backup and "CRITICAL" not in character_details_backup:
+        sections.append(f"CHARACTER CONSISTENCY:\n{character_details_backup}")
 
     # ═══════════════════════════════════════════════════════════════
     # SECTION 3: HARD LOCKS (existing, unchanged)
@@ -201,7 +242,8 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         sections.append(f"SETTING: {setting_details}")
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 5: SCENE ACTION (existing, unchanged)
+    # SECTION 5: SCENE ACTION (with character reminder - Issue #41)
+    # Triple Reinforcement #2: Prepend character reminder before action
     # ═══════════════════════════════════════════════════════════════
     key_action = prompt_data.get("key_action", "")
 
@@ -217,7 +259,25 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                         break
 
     if key_action:
-        sections.append(f"SCENE ACTION:\n{key_action}")
+        # Add character reminder before scene action (Triple Reinforcement #2)
+        character_reminder = ""
+        if character_details:
+            # Extract just character names for brief reminder
+            char_reminder_parts = []
+            if "—" in character_details:
+                # Parse format like "Prince (main character) — Visual: ..."
+                for line in character_details.split(";"):
+                    if "—" in line:
+                        name_part = line.split("—")[0].strip()
+                        char_reminder_parts.append(name_part)
+            
+            if char_reminder_parts:
+                character_reminder = (
+                    "⚠️  CHARACTER REMINDER: " + "; ".join(char_reminder_parts) + 
+                    " — Keep EXACT same appearance as defined in CHARACTER IDENTITY LOCK above.\n\n"
+                )
+        
+        sections.append(f"SCENE ACTION:\n{character_reminder}{key_action}")
 
     # ═══════════════════════════════════════════════════════════════
     # SECTION 6: CAMERA DIRECTION (existing, unchanged)
@@ -238,9 +298,23 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     # Its content (voice + style) is now at top as critical sections
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 7: NEGATIVES (existing, unchanged)
+    # SECTION 7: NEGATIVES (Enhanced with character consistency - Issue #41)
+    # Triple Reinforcement #3: Add character consistency to negatives
     # ═══════════════════════════════════════════════════════════════
     negatives = prompt_data.get("negatives", [])
+    
+    # Add character consistency negatives if characters are defined (Triple Reinforcement #3)
+    if character_details:
+        character_negatives = [
+            "NEVER change character facial features across scenes",
+            "NEVER change character hairstyle or hair color",
+            "NEVER change character outfit or clothing",
+            "NEVER introduce different-looking versions of same character",
+            "NEVER swap character identities or appearances"
+        ]
+        # Prepend to existing negatives for higher priority
+        negatives = character_negatives + list(negatives)
+    
     if negatives:
         neg_text = "\n".join(f"- {neg}" for neg in negatives)
         sections.append(f"AVOID:\n{neg_text}")
