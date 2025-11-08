@@ -1607,3 +1607,4 @@ class _Worker(QObject):
                         self.log.emit(f"[4K] Scene {card['scene']} Copy {card['copy']}: Upscaled")
                     except Exception as e:
                         self.log.emit(f"[ERR] 4K upscale failed: {e}")
+
