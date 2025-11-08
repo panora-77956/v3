@@ -519,9 +519,19 @@ class LabsFlowClient:
         raise last
 
     def upload_image_file(self, image_path: str, aspect_hint="IMAGE_ASPECT_RATIO_PORTRAIT")->Optional[str]:
+        """
+        Upload an image file to Google Labs for image-to-video generation.
+        
+        Args:
+            image_path: Path to the image file
+            aspect_hint: Aspect ratio hint (e.g., IMAGE_ASPECT_RATIO_PORTRAIT)
+        
+        Returns:
+            Media ID string if successful, None otherwise
+        """
         b64,mime=_encode_image_file(image_path)
         payload={"imageInput":{"rawImageBytes":b64,"mimeType":mime,"isUserUploaded":True,"aspectRatio":aspect_hint},
-                 "clientContext":{"sessionId":f"{int(time.time()*1000)}"}}
+                 "clientContext":{"sessionId":f";{int(time.time()*1000)}","tool":"ASSET_MANAGER"}}
         data=self._post(UPLOAD_IMAGE_URL,payload) or {}
         mid=(data.get("mediaGenerationId") or {}).get("mediaGenerationId")
         return mid
