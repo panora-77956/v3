@@ -1031,6 +1031,10 @@ class Text2VideoPanelV5(QWidget):
         domain = self.cb_domain.currentData()
         topic = self.cb_topic.currentData()
 
+        # Issue #33: Generate base seed for this batch (for style consistency)
+        import random
+        base_seed = random.randint(0, 2**31 - 1)
+
         payload = dict(
             project=self.ed_project.text().strip(),
             idea=idea,
@@ -1042,6 +1046,7 @@ class Text2VideoPanelV5(QWidget):
             voice_id=voice_id,
             domain=domain or None,
             topic=topic or None,
+            base_seed=base_seed  # Issue #33: Pass base seed for style consistency
         )
 
         self._append_log("[INFO] Bước 1/3: Sinh kịch bản...")
@@ -1247,6 +1252,9 @@ class Text2VideoPanelV5(QWidget):
 
                     # Part G: Extract dialogues from scene data for voiceover
                     dialogues = sc.get("dialogues", [])
+                    
+                    # Issue #33: Get base_seed from context for style consistency
+                    base_seed = ctx.get("base_seed") or data.get("base_seed")
 
                     j = build_prompt_json(
                         i, sc.get("prompt_vi", ""), sc.get("prompt_tgt", ""),
@@ -1261,7 +1269,8 @@ class Text2VideoPanelV5(QWidget):
                         domain=domain,
                         topic=topic,
                         quality=quality,
-                        dialogues=dialogues
+                        dialogues=dialogues,
+                        base_seed=base_seed  # Issue #33: Pass base_seed for consistency
                     )
 
                     with open(
@@ -1344,6 +1353,9 @@ class Text2VideoPanelV5(QWidget):
                 domain = self.cb_domain.currentData() or None
                 topic = self.cb_topic.currentData() or None
                 quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+                
+                # Issue #33: Get base_seed from script data for style consistency
+                base_seed = self._script_data.get("base_seed") if self._script_data else None
 
                 j = build_prompt_json(
                     r + 1, vi, tgt, lang_code, ratio_key, style,
@@ -1357,7 +1369,8 @@ class Text2VideoPanelV5(QWidget):
                     domain=domain,
                     topic=topic,
                     quality=quality_text,
-                    dialogues=dialogues
+                    dialogues=dialogues,
+                    base_seed=base_seed  # Issue #33: Pass base_seed for consistency
                 )
                 scenes.append({
                     "prompt": json.dumps(j, ensure_ascii=False, indent=2),
@@ -1557,6 +1570,9 @@ class Text2VideoPanelV5(QWidget):
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
             quality = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+            
+            # Issue #33: Get base_seed from script data for style consistency
+            base_seed = self._script_data.get("base_seed") if self._script_data else None
 
             j = build_prompt_json(
                 row + 1, vi, tgt, lang_code,
@@ -1570,7 +1586,8 @@ class Text2VideoPanelV5(QWidget):
                 domain=domain,
                 topic=topic,
                 quality=quality,
-                dialogues=dialogues
+                dialogues=dialogues,
+                base_seed=base_seed  # Issue #33: Pass base_seed for consistency
             )
 
             try:
@@ -2215,6 +2232,9 @@ class Text2VideoPanelV5(QWidget):
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
             quality = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+            
+            # Issue #33: Get base_seed from script data for style consistency
+            base_seed = self._script_data.get("base_seed") if self._script_data else None
 
             j = build_prompt_json(
                 scene_num, vi, tgt, lang_code,
@@ -2228,7 +2248,8 @@ class Text2VideoPanelV5(QWidget):
                 domain=domain,
                 topic=topic,
                 quality=quality,
-                dialogues=dialogues
+                dialogues=dialogues,
+                base_seed=base_seed  # Issue #33: Pass base_seed for consistency
             )
 
             try:
@@ -2303,6 +2324,9 @@ class Text2VideoPanelV5(QWidget):
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
             quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+            
+            # Issue #33: Get base_seed from script data for style consistency
+            base_seed = self._script_data.get("base_seed") if self._script_data else None
 
             j = build_prompt_json(
                 scene_num, vi, tgt, lang_code, ratio_key, style,
@@ -2316,7 +2340,8 @@ class Text2VideoPanelV5(QWidget):
                 domain=domain,
                 topic=topic,
                 quality=quality_text,
-                dialogues=dialogues
+                dialogues=dialogues,
+                base_seed=base_seed  # Issue #33: Pass base_seed for consistency
             )
 
             scenes = [{

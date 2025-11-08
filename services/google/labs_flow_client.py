@@ -94,19 +94,87 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     # Build complete prompt text with ALL fields
     sections = []
     
-    # 1. VISUAL STYLE (CRITICAL - was being lost!)
+    # 1. STRONG VISUAL STYLE ENFORCEMENT (ENHANCED - moved to top priority)
     constraints = prompt_data.get("constraints", {})
     visual_style_tags = constraints.get("visual_style_tags", [])
+    
     if visual_style_tags:
         style_text = ", ".join(visual_style_tags)
-        sections.append(f"VISUAL STYLE: {style_text}")
+        
+        # Build STRONG style directive based on tags
+        style_directive = f"MANDATORY VISUAL STYLE: {style_text.upper()}"
+        
+        # Add specific enforcement based on detected style
+        style_lower = style_text.lower()
+        
+        if "anime" in style_lower:
+            style_directive += (
+                "\n\nCRITICAL STYLE REQUIREMENTS:"
+                "\n- This MUST be 2D hand-drawn anime/cartoon animation"
+                "\n- Use ONLY flat colors with cel-shading"
+                "\n- Use BOLD black outlines around all characters and objects"
+                "\n- Cartoon/manga aesthetic throughout"
+                "\n- NO realistic photography or photorealistic rendering"
+                "\n- NO 3D CGI or computer-generated animation"
+                "\n- NO live action or real people"
+                "\n- NO Disney/Pixar 3D style"
+            )
+            # Check if cinematic is also present with anime
+            if "cinematic" in style_lower:
+                style_directive += "\n\nCinematic anime style - still 2D animated, NOT live action."
+        elif "realistic" in style_lower or "cinematic" in style_lower:
+            # Only use realistic if NOT anime
+            style_directive += "\n\nFilm-like realistic quality with cinematic lighting."
+        
+        sections.append(style_directive)
     
-    # 2. CHARACTER DETAILS (preserve original, no injection!)
+    # 2. NEGATIVE PROMPTS (NEW - critical for style enforcement)
+    negatives = prompt_data.get("negatives", [])
+    
+    # Add style-specific negative prompts
+    style_negatives = []
+    if visual_style_tags:
+        style_lower = str(visual_style_tags).lower()
+        
+        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
+            # Strong negative prompts for anime style
+            style_negatives.extend([
+                "realistic photography",
+                "photorealistic rendering",
+                "photo-realistic",
+                "3D CGI animation",
+                "3D rendered",
+                "computer generated imagery",
+                "Disney/Pixar 3D style",
+                "live action footage",
+                "real people",
+                "real actors",
+                "photographic lighting",
+                "realistic textures",
+                "film photography",
+                "stock photography"
+            ])
+    
+    # Combine with existing negatives
+    all_negatives = list(negatives) + style_negatives
+    if all_negatives:
+        # Remove duplicates while preserving order
+        seen = set()
+        unique_negatives = []
+        for neg in all_negatives:
+            if neg not in seen:
+                seen.add(neg)
+                unique_negatives.append(neg)
+        
+        neg_text = "\n".join(f"- {neg}" for neg in unique_negatives)
+        sections.append(f"AVOID (Negative Prompts):\n{neg_text}")
+    
+    # 3. CHARACTER DETAILS (preserve original, no injection!)
     character_details = prompt_data.get("character_details", "")
     if character_details:
         sections.append(f"CHARACTER CONSISTENCY:\n{character_details}")
     
-    # 3. HARD LOCKS (critical consistency requirements)
+    # 4. HARD LOCKS (critical consistency requirements)
     hard_locks = prompt_data.get("hard_locks", {})
     if hard_locks:
         locks = []
@@ -116,12 +184,12 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         if locks:
             sections.append("CONSISTENCY REQUIREMENTS:\n" + "\n".join(locks))
     
-    # 4. SETTING DETAILS
+    # 5. SETTING DETAILS
     setting_details = prompt_data.get("setting_details", "")
     if setting_details:
         sections.append(f"SETTING: {setting_details}")
     
-    # 5. KEY ACTION (main scene description - NEVER truncate!)
+    # 6. KEY ACTION - PREPEND STYLE TAG (NEW - critical!)
     key_action = prompt_data.get("key_action", "")
     
     # Also check localization for scene description
@@ -136,15 +204,24 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                         break
     
     if key_action:
+        # PREPEND style tag to scene description for reinforcement
+        if visual_style_tags:
+            style_tags_upper = [tag.upper() for tag in visual_style_tags]
+            style_tag_prefix = f"[STYLE: {' + '.join(style_tags_upper)}] "
+            
+            # Only add prefix if not already present
+            if not key_action.strip().startswith("["):
+                key_action = style_tag_prefix + key_action
+        
         sections.append(f"SCENE ACTION:\n{key_action}")
     
-    # 6. TASK INSTRUCTIONS (IMPORTANT - includes voiceover directives!)
+    # 7. TASK INSTRUCTIONS (IMPORTANT - includes voiceover directives!)
     task_instructions = prompt_data.get("Task_Instructions", [])
     if task_instructions and isinstance(task_instructions, list):
         instructions_text = "\n".join(f"- {instr}" for instr in task_instructions)
         sections.append(f"TASK INSTRUCTIONS:\n{instructions_text}")
     
-    # 7. VOICEOVER (language and text)
+    # 8. VOICEOVER (language and text)
     audio = prompt_data.get("audio", {})
     if isinstance(audio, dict):
         voiceover = audio.get("voiceover", {})
@@ -154,7 +231,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
             if vo_text:
                 sections.append(f"VOICEOVER ({vo_lang}):\n{vo_text}")
     
-    # 8. CAMERA DIRECTION
+    # 9. CAMERA DIRECTION
     camera_dir = prompt_data.get("camera_direction", [])
     if isinstance(camera_dir, list) and camera_dir:
         cam_text = []
@@ -166,12 +243,6 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                     cam_text.append(f"[{time}] {shot}")
         if cam_text:
             sections.append("CAMERA:\n" + "\n".join(cam_text))
-    
-    # 9. NEGATIVES (what to avoid)
-    negatives = prompt_data.get("negatives", [])
-    if negatives and isinstance(negatives, list):
-        neg_text = "\n".join(f"- {neg}" for neg in negatives)
-        sections.append(f"AVOID:\n{neg_text}")
     
     # Combine all sections with clear separators
     complete_prompt = "\n\n".join(sections)
