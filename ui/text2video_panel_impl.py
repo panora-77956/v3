@@ -296,7 +296,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
     if enhanced_bible and hasattr(enhanced_bible, 'characters'):
         # Use detailed character bible - preserve original without injection
         try:
-            # Build character details from enhanced bible characters
+            # Build character details from enhanced bible characters with MORE DETAIL
             char_parts = []
             for char in enhanced_bible.characters:
                 if isinstance(char, dict):
@@ -304,14 +304,66 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
                     role = char.get("role", "")
                     visual = char.get("visual_identity", "")
                     key_trait = char.get("key_trait", "")
+                    
+                    # Extract detailed physical attributes from character bible
+                    hair_dna = char.get("hair_dna", {})
+                    eye_signature = char.get("eye_signature", {})
+                    physical_blueprint = char.get("physical_blueprint", {})
+                    facial_map = char.get("facial_map", {})
+                    consistency_anchors = char.get("consistency_anchors", [])
 
                     if nm:
-                        # Build character description with visual identity
+                        # Build EXTREMELY DETAILED character description with physical attributes and accessories
                         parts = [f"{nm}"]
                         if role:
                             parts.append(f"({role})")
+                        
+                        # Build comprehensive visual description
+                        visual_details = []
                         if visual:
-                            parts.append(f"— Visual: {visual}")
+                            visual_details.append(visual)
+                        
+                        # Add detailed physical descriptions
+                        if hair_dna:
+                            hair_color = hair_dna.get("color", "")
+                            hair_length = hair_dna.get("length", "")
+                            hair_style = hair_dna.get("style", "")
+                            hair_texture = hair_dna.get("texture", "")
+                            if hair_color or hair_length or hair_style:
+                                hair_desc = f"{hair_color} {hair_length} {hair_style} {hair_texture} hair".strip()
+                                visual_details.append(hair_desc)
+                        
+                        if eye_signature:
+                            eye_color = eye_signature.get("color", "")
+                            eye_shape = eye_signature.get("shape", "")
+                            if eye_color or eye_shape:
+                                eye_desc = f"{eye_shape} {eye_color} eyes".strip()
+                                visual_details.append(eye_desc)
+                        
+                        if physical_blueprint:
+                            build = physical_blueprint.get("build", "")
+                            skin_tone = physical_blueprint.get("skin_tone", "")
+                            if build:
+                                visual_details.append(f"{build} build")
+                            if skin_tone:
+                                visual_details.append(f"{skin_tone} skin")
+                        
+                        if facial_map:
+                            marks = facial_map.get("distinguishing_marks", "")
+                            if marks and marks != "none":
+                                visual_details.append(f"distinguishing marks: {marks}")
+                        
+                        # Add top 3 consistency anchors as specific accessories/features
+                        if consistency_anchors:
+                            for anchor in consistency_anchors[:3]:
+                                # Remove numbering like "1. " from anchor text
+                                anchor_text = anchor.split(". ", 1)[1] if ". " in anchor else anchor
+                                visual_details.append(anchor_text)
+                        
+                        # Combine all visual details
+                        if visual_details:
+                            parts.append(f"— Visual: {', '.join(visual_details)}")
+                        
                         if key_trait:
                             parts.append(f"Trait: {key_trait}")
 
@@ -326,20 +378,73 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             # Intentional fallback to basic character_details - continue processing
     elif character_bible and isinstance(character_bible, list) and len(character_bible) > 0:
         # BUG FIX #2: Include ALL characters with visual_identity and CRITICAL consistency note
+        # Enhanced with MORE DETAIL including physical attributes and accessories
         char_parts = []
         for char in character_bible:
             nm = char.get("name", "")
             role = char.get("role", "")
             visual = char.get("visual_identity", "")
             key_trait = char.get("key_trait", "")
+            
+            # Extract detailed physical attributes from character bible
+            hair_dna = char.get("hair_dna", {})
+            eye_signature = char.get("eye_signature", {})
+            physical_blueprint = char.get("physical_blueprint", {})
+            facial_map = char.get("facial_map", {})
+            consistency_anchors = char.get("consistency_anchors", [])
 
             if nm:
-                # Build character description with visual identity
+                # Build EXTREMELY DETAILED character description with physical attributes and accessories
                 parts = [f"{nm}"]
                 if role:
                     parts.append(f"({role})")
+                
+                # Build comprehensive visual description
+                visual_details = []
                 if visual:
-                    parts.append(f"— Visual: {visual}")
+                    visual_details.append(visual)
+                
+                # Add detailed physical descriptions
+                if hair_dna:
+                    hair_color = hair_dna.get("color", "")
+                    hair_length = hair_dna.get("length", "")
+                    hair_style = hair_dna.get("style", "")
+                    hair_texture = hair_dna.get("texture", "")
+                    if hair_color or hair_length or hair_style:
+                        hair_desc = f"{hair_color} {hair_length} {hair_style} {hair_texture} hair".strip()
+                        visual_details.append(hair_desc)
+                
+                if eye_signature:
+                    eye_color = eye_signature.get("color", "")
+                    eye_shape = eye_signature.get("shape", "")
+                    if eye_color or eye_shape:
+                        eye_desc = f"{eye_shape} {eye_color} eyes".strip()
+                        visual_details.append(eye_desc)
+                
+                if physical_blueprint:
+                    build = physical_blueprint.get("build", "")
+                    skin_tone = physical_blueprint.get("skin_tone", "")
+                    if build:
+                        visual_details.append(f"{build} build")
+                    if skin_tone:
+                        visual_details.append(f"{skin_tone} skin")
+                
+                if facial_map:
+                    marks = facial_map.get("distinguishing_marks", "")
+                    if marks and marks != "none":
+                        visual_details.append(f"distinguishing marks: {marks}")
+                
+                # Add top 3 consistency anchors as specific accessories/features
+                if consistency_anchors:
+                    for anchor in consistency_anchors[:3]:
+                        # Remove numbering like "1. " from anchor text
+                        anchor_text = anchor.split(". ", 1)[1] if ". " in anchor else anchor
+                        visual_details.append(anchor_text)
+                
+                # Combine all visual details
+                if visual_details:
+                    parts.append(f"— Visual: {', '.join(visual_details)}")
+                
                 if key_trait:
                     parts.append(f"Trait: {key_trait}")
 
@@ -592,7 +697,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         "hard_locks": hard_locks,
         "character_details": character_details,
         "setting_details": _build_setting_details(location_context),
-        "key_action": (desc_tgt or desc_vi or "").strip(),
+        "key_action": f"[SCENE {scene_index}] " + (desc_tgt or desc_vi or "").strip(),
         "camera_direction": segments,
         "audio": {
             "voiceover": voiceover_config,
@@ -630,8 +735,8 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "consistency_mode": "strict"
         },
         "localization": {
-            "vi": {"prompt": (desc_vi or '').strip()},
-            (lang_code if lang_code else "en"): {"prompt": (desc_tgt or desc_vi or '').strip()}
+            "vi": {"prompt": f"[SCENE {scene_index}] " + (desc_vi or '').strip()},
+            (lang_code if lang_code else "en"): {"prompt": f"[SCENE {scene_index}] " + (desc_tgt or desc_vi or '').strip()}
         }
     }
 
