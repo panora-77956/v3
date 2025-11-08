@@ -64,6 +64,77 @@ _MODEL_DISPLAY_NAMES = {
 # Error message truncation limit for logging
 _MAX_ERROR_MESSAGE_LENGTH = 100
 
+# Style tag mapping for comprehensive visual styles
+STYLE_TAG_MAP = {
+    # Animation Styles
+    "anime_2d": {
+        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading"],
+        "negatives": [
+            "realistic photography", "photorealistic", "3D CGI", 
+            "Disney 3D", "Pixar style", "live action", "real people"
+        ]
+    },
+    "anime_cinematic": {
+        "tags": ["anime", "cinematic lighting", "dramatic camera", "2d animation"],
+        "negatives": [
+            "realistic photography", "photorealistic", "3D CGI",
+            "live action", "real people"
+        ]
+    },
+    
+    # Realistic Styles
+    "realistic": {
+        "tags": ["photorealistic", "realistic textures", "natural lighting"],
+        "negatives": ["anime", "cartoon", "illustrated", "2d animation"]
+    },
+    "cinematic": {
+        "tags": ["cinematic", "film-like", "dramatic lighting", "professional cinematography"],
+        "negatives": ["amateur", "low quality", "home video"]
+    },
+    
+    # Genre Styles
+    "sci_fi": {
+        "tags": ["sci-fi", "futuristic", "neon lighting", "technology", "holographic", "cyberpunk"],
+        "negatives": ["medieval", "ancient", "rustic", "natural"]
+    },
+    "horror": {
+        "tags": ["horror", "dark", "eerie", "suspenseful", "gothic", "ominous"],
+        "negatives": ["bright", "cheerful", "colorful", "happy", "comedy"]
+    },
+    "fantasy": {
+        "tags": ["fantasy", "magical", "enchanted", "mystical", "vibrant", "ethereal"],
+        "negatives": ["realistic", "modern", "technological", "scientific"]
+    },
+    "action": {
+        "tags": ["action", "dynamic", "high energy", "intense", "fast-paced", "explosive"],
+        "negatives": ["slow", "static", "calm", "peaceful"]
+    },
+    "romance": {
+        "tags": ["romance", "soft lighting", "warm colors", "dreamy", "gentle", "intimate"],
+        "negatives": ["harsh", "dark", "violent", "aggressive"]
+    },
+    "comedy": {
+        "tags": ["comedy", "bright", "playful", "exaggerated", "vibrant", "fun"],
+        "negatives": ["dark", "serious", "dramatic", "horror"]
+    },
+    
+    # Special Styles
+    "documentary": {
+        "tags": ["documentary", "realistic", "natural lighting", "clear", "informative", "educational"],
+        "negatives": ["stylized", "artistic", "abstract", "fantasy"]
+    },
+    "film_noir": {
+        "tags": ["film noir", "black and white", "dramatic shadows", "high contrast", "vintage", "1940s aesthetic"],
+        "negatives": ["colorful", "bright", "modern", "futuristic"]
+    },
+    
+    # Legacy mappings (for backward compatibility)
+    "anime": {
+        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading"],
+        "negatives": ["realistic photography", "photorealistic", "3D CGI"]
+    }
+}
+
 def get_model_key_from_display(display_name):
     """Convert display name back to API key"""
     for key, display in _MODEL_DISPLAY_NAMES.items():
@@ -165,12 +236,30 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         {"t": f"{b3}-{seconds:.1f}s", "shot": "Clear end beat; micro push-in or hold; leave space for on-screen text."},
     ]
 
-    style_tags = []
-    sl = (style or "").lower()
-    if "điện ảnh" in sl or "cinematic" in sl: style_tags += ["cinematic","natural light","soft shadows"]
-    if "anime" in sl or "hoạt hình" in sl: style_tags += ["anime","flat colors","outlined"]
-    if "tài liệu" in sl or "documentary" in sl: style_tags += ["documentary","handheld feel"]
-    if not style_tags: style_tags = ["modern","clean"]
+    # Get style from STYLE_TAG_MAP
+    style_key = style  # This comes from cb_style.currentData()
+    
+    # Handle separator or invalid selections
+    if not style_key or (isinstance(style_key, str) and style_key.startswith("separator")):
+        style_key = "anime_2d"  # Default fallback
+    
+    # Get style configuration
+    style_config = STYLE_TAG_MAP.get(style_key)
+    
+    if not style_config:
+        # Fallback: try to match by text (for backward compatibility with old text-based styles)
+        style_lower = str(style).lower().replace(" ", "_").replace("(", "").replace(")", "")
+        for key in STYLE_TAG_MAP:
+            if key in style_lower or style_lower in key:
+                style_config = STYLE_TAG_MAP[key]
+                break
+    
+    if not style_config:
+        # Final fallback: use anime_2d
+        style_config = STYLE_TAG_MAP["anime_2d"]
+    
+    visual_style_tags = style_config["tags"]
+    style_negatives = style_config.get("negatives", [])
 
     # Part E: Enhanced location consistency with specific location context
     location_lock = "Keep to single coherent environment; no random background swaps."
@@ -461,8 +550,8 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
         task_instructions.append(f"voiceover: '{emotion_prefix}{vo_text}'")
 
     # 4. Visual style from constraints
-    if style_tags:
-        style_desc = ", ".join(style_tags)
+    if visual_style_tags:
+        style_desc = ", ".join(visual_style_tags)
         task_instructions.append(f"Visual style: {style_desc}")
 
     # 5. Character consistency reminder
@@ -481,7 +570,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "duration_seconds": seconds,
             "aspect_ratio": ratio_str,
             "resolution": resolution,
-            "visual_style_tags": style_tags,
+            "visual_style_tags": visual_style_tags,
             "camera": { "fps": 24, "lens_hint": "50mm look", "stabilization": "steady tripod-like" }
         },
         "assets": { "images": {} },
@@ -517,7 +606,7 @@ def build_prompt_json(scene_index:int, desc_vi:str, desc_tgt:str, lang_code:str,
             "Avoid jarring cuts or random background swaps.",
             "No brand logos unless present in references.",
             "No unrealistic X-ray views; use graphic overlays only."
-        ],
+        ] + style_negatives,  # Add style-specific negatives
         "generation": {
             "seed": (base_seed + scene_index) if base_seed is not None else __import__("random").randint(0, 2**31-1),
             "copies": copies,
