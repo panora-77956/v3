@@ -24,7 +24,7 @@ class ParallelSeqWorker(QObject):
     started = pyqtSignal()              # Worker started
     finished = pyqtSignal(int)          # Worker finished with count
 
-    def __init__(self, account_mgr, jobs, model, aspect, copies, project_id):
+    def __init__(self, account_mgr, jobs, model, aspect, copies, project_id=None):
         """
         Initialize parallel worker
         
@@ -34,7 +34,7 @@ class ParallelSeqWorker(QObject):
             model: Model to use for generation
             aspect: Aspect ratio
             copies: Number of copies per scene
-            project_id: Google Labs project ID
+            project_id: (Deprecated) Google Labs project ID - now uses account-specific IDs
         """
         super().__init__()
         self.account_mgr = account_mgr
@@ -42,7 +42,7 @@ class ParallelSeqWorker(QObject):
         self.model = model
         self.aspect = aspect
         self.copies = copies
-        self.project_id = project_id
+        self.project_id = project_id  # Kept for backward compatibility, not used
 
         # Thread coordination
         self.results_queue = Queue()
@@ -125,7 +125,7 @@ class ParallelSeqWorker(QObject):
         Runs in a separate thread
         
         Args:
-            account: LabsAccount object with tokens
+            account: LabsAccount object with tokens and project_id
             batch: List of (job_index, job_dict) tuples
             thread_id: Thread identifier for logging
         """
@@ -135,6 +135,9 @@ class ParallelSeqWorker(QObject):
 
             # Create client for this account
             client = LabsFlowClient(account.tokens, on_event=None)
+
+            # Use account-specific project_id instead of global one
+            account_project_id = account.project_id
 
             thread_name = f"T{thread_id+1}"
 
@@ -168,7 +171,7 @@ class ParallelSeqWorker(QObject):
                         self.aspect, 
                         job.get("prompt", ""),
                         copies=self.copies,
-                        project_id=self.project_id
+                        project_id=account_project_id
                     )
 
                     # CRITICAL FIX: Store account name so CheckWorker can use correct client
@@ -261,6 +264,9 @@ class ParallelSeqWorker(QObject):
             # Create client
             client = LabsFlowClient(account.tokens, on_event=None)
 
+            # Use account-specific project_id
+            account_project_id = account.project_id
+
             # Process jobs sequentially
             total = max(1, len(self.jobs))
             done = 0
@@ -289,8 +295,10 @@ class ParallelSeqWorker(QObject):
                 self.log.emit("INFO", f"[{i+1}/{len(self.jobs)}] Start generate…")
                 try:
                     self.progress.emit(int(done * 100 / total), f"Cảnh {i+1}/{len(self.jobs)}: start…")
-                    rc = client.start_one(job, self.model, self.aspect, job.get("prompt", ""), 
-                                         copies=self.copies, project_id=self.project_id)
+                    rc = client.start_one(
+                        job, self.model, self.aspect, job.get("prompt", ""), 
+                        copies=self.copies, project_id=account_project_id
+                    )
                     self.log.emit("HTTP", f"START OK -> {rc} ref(s).")
                 except Exception as e:
                     self.log.emit("ERR", f"Start thất bại: {e}")
