@@ -8,6 +8,17 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
 
+# Import content policy filter for prompt sanitization
+try:
+    from services.google.content_policy_filter import sanitize_prompt_for_google_labs
+except ImportError:
+    try:
+        from content_policy_filter import sanitize_prompt_for_google_labs
+    except ImportError:
+        # Fallback: no filtering if module not available
+        def sanitize_prompt_for_google_labs(prompt, enable_age_up=True):
+            return prompt, []
+
 # Optional default_project_id from user config (non-breaking)
 try:
     from utils import config as _cfg_mod  # type: ignore
@@ -606,22 +617,53 @@ class LabsFlowClient:
         # CRITICAL FIX: Send prompt as JSON string (Option A)
         # Google Labs expects FULL JSON structure, not parsed text
 
+        # Parse prompt_text to get original data
+        original_prompt_data = None
         if isinstance(prompt_text, dict):
-            # Convert dict to JSON string (like Google Labs)
-            prompt = json.dumps(prompt_text, ensure_ascii=False)
+            original_prompt_data = prompt_text
         elif isinstance(prompt_text, str):
             # If already a string, check if it's JSON or plain text
             try:
                 # Try to parse as JSON
-                parsed = json.loads(prompt_text)
+                original_prompt_data = json.loads(prompt_text)
+            except:
+                # Not JSON - it's plain text
+                original_prompt_data = prompt_text
+        else:
+            original_prompt_data = str(prompt_text)
+        
+        # ═══════════════════════════════════════════════════════════════
+        # CONTENT POLICY FILTER: Sanitize prompt to comply with Google's policies
+        # This prevents HTTP 400 errors caused by content policy violations
+        # (especially regarding minors/children)
+        # ═══════════════════════════════════════════════════════════════
+        sanitized_prompt_data, policy_warnings = sanitize_prompt_for_google_labs(
+            original_prompt_data, 
+            enable_age_up=True
+        )
+        
+        # Emit warnings if any content was sanitized
+        if policy_warnings:
+            for warning in policy_warnings:
+                self._emit("content_policy_warning", warning=warning)
+        
+        # Convert sanitized data back to string format for API
+        if isinstance(sanitized_prompt_data, dict):
+            # Convert dict to JSON string (like Google Labs)
+            prompt = json.dumps(sanitized_prompt_data, ensure_ascii=False)
+        elif isinstance(sanitized_prompt_data, str):
+            # Already a string - check if it's JSON
+            try:
+                # Try to parse as JSON to validate
+                parsed = json.loads(sanitized_prompt_data)
                 # If successful, it's already a JSON string - use as-is
-                prompt = prompt_text
+                prompt = sanitized_prompt_data
             except:
                 # Not JSON - it's plain text, use as-is
                 # (This maintains backward compatibility for simple text prompts)
-                prompt = prompt_text
+                prompt = sanitized_prompt_data
         else:
-            prompt = str(prompt_text)
+            prompt = str(sanitized_prompt_data)
 
         def _make_body(use_model, mid_val, copies_n):
             reqs=[]
