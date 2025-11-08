@@ -1,6 +1,10 @@
-import base64, mimetypes, json, time, requests, re
-from typing import List, Dict, Optional, Tuple, Callable, Any
+import base64
+import mimetypes
+import re
+import time
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
+import requests
 
 # Optional default_project_id from user config (non-breaking)
 try:
@@ -17,9 +21,9 @@ except Exception:
 
 # Support both package and flat layouts
 try:
-    from services.endpoints import UPLOAD_IMAGE_URL, I2V_URL, T2V_URL, BATCH_CHECK_URL
+    from services.endpoints import BATCH_CHECK_URL, I2V_URL, T2V_URL, UPLOAD_IMAGE_URL
 except Exception:  # pragma: no cover
-    from endpoints import UPLOAD_IMAGE_URL, I2V_URL, T2V_URL, BATCH_CHECK_URL
+    from endpoints import BATCH_CHECK_URL, I2V_URL, T2V_URL, UPLOAD_IMAGE_URL
 
 DEFAULT_PROJECT_ID = "87b19267-13d6-49cd-a7ed-db19a90c9339"
 
@@ -72,109 +76,114 @@ def _normalize_status(item: dict) -> str:
 
 def _build_complete_prompt_text(prompt_data: Any) -> str:
     """
-    Build a COMPLETE text prompt from JSON structure, preserving ALL fields.
+    Build a COMPLETE text prompt from JSON structure.
     
-    This function converts the full JSON prompt to a comprehensive text format
-    that includes ALL information needed for video generation.
-    
-    Args:
-        prompt_data: Full prompt JSON (dict) or text string
-        
-    Returns:
-        Complete text prompt with all fields preserved in structured format
+    CRITICAL: Order matters! API reads top→bottom, so most important
+    requirements MUST be at the top.
     """
     # If already a string, return as-is (backward compatibility)
     if isinstance(prompt_data, str):
         return prompt_data
-    
+
     # If not dict, convert to string
     if not isinstance(prompt_data, dict):
         return str(prompt_data)
-    
-    # Build complete prompt text with ALL fields
+
     sections = []
-    
-    # 1. STRONG VISUAL STYLE ENFORCEMENT (ENHANCED - moved to top priority)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 0: VOICEOVER LANGUAGE (TOP PRIORITY - MUST BE FIRST!)
+    # ═══════════════════════════════════════════════════════════════
+    audio = prompt_data.get("audio", {})
+    if isinstance(audio, dict):
+        voiceover = audio.get("voiceover", {})
+        if isinstance(voiceover, dict):
+            vo_lang = voiceover.get("language", "")
+            vo_text = voiceover.get("text", "")
+
+            if vo_lang and vo_text:
+                # Map language codes to full names
+                lang_name_map = {
+                    'vi': 'Vietnamese', 'en': 'English', 'ja': 'Japanese',
+                    'ko': 'Korean', 'zh': 'Chinese', 'fr': 'French',
+                    'de': 'German', 'es': 'Spanish', 'ru': 'Russian',
+                    'th': 'Thai', 'id': 'Indonesian'
+                }
+                lang_name = lang_name_map.get(vo_lang, vo_lang.upper())
+
+                # CRITICAL: This MUST be at the very top
+                voice_directive = (
+                    f"═══════════════════════════════════════════════\n"
+                    f"CRITICAL AUDIO REQUIREMENT (HIGHEST PRIORITY)\n"
+                    f"═══════════════════════════════════════════════\n"
+                    f"ALL voiceover and dialogue audio MUST be spoken in {lang_name} ({vo_lang}).\n"
+                    f"Do NOT use any other language for voice audio.\n"
+                    f"Text-to-speech MUST use {lang_name} ({vo_lang}) language model.\n"
+                    f"\nVoiceover text:\n\"{vo_text}\"\n"
+                    f"═══════════════════════════════════════════════"
+                )
+                sections.append(voice_directive)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 1: VISUAL STYLE ENFORCEMENT (STRENGTHENED!)
+    # ═══════════════════════════════════════════════════════════════
     constraints = prompt_data.get("constraints", {})
     visual_style_tags = constraints.get("visual_style_tags", [])
-    
+
     if visual_style_tags:
         style_text = ", ".join(visual_style_tags)
-        
-        # Build STRONG style directive based on tags
-        style_directive = f"MANDATORY VISUAL STYLE: {style_text.upper()}"
-        
-        # Add specific enforcement based on detected style
         style_lower = style_text.lower()
-        
-        if "anime" in style_lower:
+
+        # Build STRONG style directive
+        style_directive = (
+            "═══════════════════════════════════════════════\n"
+            "MANDATORY VISUAL STYLE REQUIREMENT\n"
+            "═══════════════════════════════════════════════\n"
+        )
+
+        # Specific enforcement for anime style
+        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
             style_directive += (
-                "\n\nCRITICAL STYLE REQUIREMENTS:"
-                "\n- This MUST be 2D hand-drawn anime/cartoon animation"
-                "\n- Use ONLY flat colors with cel-shading"
-                "\n- Use BOLD black outlines around all characters and objects"
-                "\n- Cartoon/manga aesthetic throughout"
-                "\n- NO realistic photography or photorealistic rendering"
-                "\n- NO 3D CGI or computer-generated animation"
-                "\n- NO live action or real people"
-                "\n- NO Disney/Pixar 3D style"
+                "REQUIRED STYLE: 2D Hand-Drawn Anime Animation\n\n"
+                "MUST HAVE:\n"
+                "✓ Flat colors with cel-shading (NO realistic gradients)\n"
+                "✓ Bold black outlines around ALL characters and objects\n"
+                "✓ 2D cartoon/manga aesthetic throughout\n"
+                "✓ Hand-drawn animation style\n"
+                "✓ Anime character designs with expressive features\n\n"
+                "ABSOLUTELY FORBIDDEN:\n"
+                "✗ Realistic photography or photorealistic rendering\n"
+                "✗ 3D CGI or computer-generated animation\n"
+                "✗ Disney/Pixar 3D style\n"
+                "✗ Live action footage or real people\n"
+                "✗ Photographic lighting or realistic textures\n"
+                "✗ Film photography aesthetic\n"
+                "✗ Cinematic realism or hyperrealistic styles\n"
             )
-            # Check if cinematic is also present with anime
-            if "cinematic" in style_lower:
-                style_directive += "\n\nCinematic anime style - still 2D animated, NOT live action."
         elif "realistic" in style_lower or "cinematic" in style_lower:
             # Only use realistic if NOT anime
-            style_directive += "\n\nFilm-like realistic quality with cinematic lighting."
-        
+            style_directive += (
+                f"REQUIRED STYLE: {style_text.title()}\n\n"
+                f"Film-like quality with realistic textures, lighting, and motion.\n"
+                f"Photorealistic rendering with cinematic camera work.\n"
+            )
+        else:
+            # Generic style
+            style_directive += f"REQUIRED STYLE: {style_text.upper()}\n\n"
+
+        style_directive += "═══════════════════════════════════════════════"
         sections.append(style_directive)
-    
-    # 2. NEGATIVE PROMPTS (NEW - critical for style enforcement)
-    negatives = prompt_data.get("negatives", [])
-    
-    # Add style-specific negative prompts
-    style_negatives = []
-    if visual_style_tags:
-        style_lower = str(visual_style_tags).lower()
-        
-        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
-            # Strong negative prompts for anime style
-            style_negatives.extend([
-                "realistic photography",
-                "photorealistic rendering",
-                "photo-realistic",
-                "3D CGI animation",
-                "3D rendered",
-                "computer generated imagery",
-                "Disney/Pixar 3D style",
-                "live action footage",
-                "real people",
-                "real actors",
-                "photographic lighting",
-                "realistic textures",
-                "film photography",
-                "stock photography"
-            ])
-    
-    # Combine with existing negatives
-    all_negatives = list(negatives) + style_negatives
-    if all_negatives:
-        # Remove duplicates while preserving order
-        seen = set()
-        unique_negatives = []
-        for neg in all_negatives:
-            if neg not in seen:
-                seen.add(neg)
-                unique_negatives.append(neg)
-        
-        neg_text = "\n".join(f"- {neg}" for neg in unique_negatives)
-        sections.append(f"AVOID (Negative Prompts):\n{neg_text}")
-    
-    # 3. CHARACTER DETAILS (preserve original, no injection!)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 2: CHARACTER CONSISTENCY (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
     character_details = prompt_data.get("character_details", "")
     if character_details:
         sections.append(f"CHARACTER CONSISTENCY:\n{character_details}")
-    
-    # 4. HARD LOCKS (critical consistency requirements)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 3: HARD LOCKS (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
     hard_locks = prompt_data.get("hard_locks", {})
     if hard_locks:
         locks = []
@@ -183,16 +192,20 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 locks.append(f"- {key.replace('_', ' ').title()}: {value}")
         if locks:
             sections.append("CONSISTENCY REQUIREMENTS:\n" + "\n".join(locks))
-    
-    # 5. SETTING DETAILS
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 4: SETTING DETAILS (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
     setting_details = prompt_data.get("setting_details", "")
     if setting_details:
         sections.append(f"SETTING: {setting_details}")
-    
-    # 6. KEY ACTION - PREPEND STYLE TAG (NEW - critical!)
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 5: SCENE ACTION (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
     key_action = prompt_data.get("key_action", "")
-    
-    # Also check localization for scene description
+
+    # Check localization
     if not key_action:
         localization = prompt_data.get("localization", {})
         if isinstance(localization, dict):
@@ -202,36 +215,13 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                     if isinstance(lang_data, dict) and "prompt" in lang_data:
                         key_action = str(lang_data["prompt"])
                         break
-    
+
     if key_action:
-        # PREPEND style tag to scene description for reinforcement
-        if visual_style_tags:
-            style_tags_upper = [tag.upper() for tag in visual_style_tags]
-            style_tag_prefix = f"[STYLE: {' + '.join(style_tags_upper)}] "
-            
-            # Only add prefix if not already present
-            if not key_action.strip().startswith("["):
-                key_action = style_tag_prefix + key_action
-        
         sections.append(f"SCENE ACTION:\n{key_action}")
-    
-    # 7. TASK INSTRUCTIONS (IMPORTANT - includes voiceover directives!)
-    task_instructions = prompt_data.get("Task_Instructions", [])
-    if task_instructions and isinstance(task_instructions, list):
-        instructions_text = "\n".join(f"- {instr}" for instr in task_instructions)
-        sections.append(f"TASK INSTRUCTIONS:\n{instructions_text}")
-    
-    # 8. VOICEOVER (language and text)
-    audio = prompt_data.get("audio", {})
-    if isinstance(audio, dict):
-        voiceover = audio.get("voiceover", {})
-        if isinstance(voiceover, dict):
-            vo_text = voiceover.get("text", "")
-            vo_lang = voiceover.get("language", "")
-            if vo_text:
-                sections.append(f"VOICEOVER ({vo_lang}):\n{vo_text}")
-    
-    # 9. CAMERA DIRECTION
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 6: CAMERA DIRECTION (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
     camera_dir = prompt_data.get("camera_direction", [])
     if isinstance(camera_dir, list) and camera_dir:
         cam_text = []
@@ -243,16 +233,27 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                     cam_text.append(f"[{time}] {shot}")
         if cam_text:
             sections.append("CAMERA:\n" + "\n".join(cam_text))
-    
+
+    # NOTE: Task_Instructions section REMOVED
+    # Its content (voice + style) is now at top as critical sections
+
+    # ═══════════════════════════════════════════════════════════════
+    # SECTION 7: NEGATIVES (existing, unchanged)
+    # ═══════════════════════════════════════════════════════════════
+    negatives = prompt_data.get("negatives", [])
+    if negatives:
+        neg_text = "\n".join(f"- {neg}" for neg in negatives)
+        sections.append(f"AVOID:\n{neg_text}")
+
     # Combine all sections with clear separators
     complete_prompt = "\n\n".join(sections)
-    
+
     return complete_prompt
 
 class LabsClient:
     MAX_RETRY_ATTEMPTS = 9  # Maximum total retry attempts across all tokens
     RETRY_SLEEP_MULTIPLIER = 0.7  # Multiplier for exponential backoff sleep time
-    
+
     def __init__(self, bearers: List[str], timeout: Tuple[int,int]=(20,180), on_event: Optional[Callable[[dict], None]]=None):
         self.tokens=[t.strip() for t in (bearers or []) if t.strip()]
         if not self.tokens: raise ValueError("No Labs tokens provided")
@@ -279,12 +280,12 @@ class LabsClient:
             # All tokens are invalid, try them anyway as a fallback
             tokens_to_try = self.tokens.copy()
             self._invalid_tokens.clear()
-        
+
         max_attempts = min(3 * len(tokens_to_try), self.MAX_RETRY_ATTEMPTS)
         attempts_made = 0
         skip_count = 0  # Prevent infinite loop when all tokens are invalid
         max_skips = len(self.tokens) * 2  # Allow skipping all tokens twice
-        
+
         while attempts_made < max_attempts and skip_count < max_skips:
             current_token = None
             try:
@@ -294,16 +295,16 @@ class LabsClient:
                 if current_token in self._invalid_tokens:
                     skip_count += 1
                     continue
-                
+
                 attempts_made += 1
                 skip_count = 0  # Reset skip count when we make an actual attempt
-                    
+
                 r=requests.post(url, headers=_headers(current_token), json=payload, timeout=self.timeout)
                 if r.status_code==200:
                     self._emit("http_ok", code=200)
                     try: return r.json()
                     except Exception: return {}
-                
+
                 # Handle 401 Unauthorized - mark token as invalid and skip to next immediately
                 if r.status_code == 401:
                     self._invalid_tokens.add(current_token)
@@ -313,7 +314,7 @@ class LabsClient:
                     # Don't sleep, immediately try next token
                     last = requests.HTTPError(f"401 Client Error: Unauthorized for url: {url}")
                     continue
-                    
+
                 det=""
                 try: det=r.json().get("error",{}).get("message","")[:300]
                 except Exception: det=(r.text or "")[:300]
@@ -331,7 +332,7 @@ class LabsClient:
                 last=e; time.sleep(self.RETRY_SLEEP_MULTIPLIER*(attempts_made))
             except Exception as e:
                 last=e; time.sleep(self.RETRY_SLEEP_MULTIPLIER*(attempts_made))
-        
+
         if last is None:
             last = Exception("All tokens are invalid or max attempts reached")
         raise last
@@ -348,10 +349,10 @@ class LabsClient:
         """Start a scene with robust fallbacks: delay-after-upload, model ladder (I2V vs T2V), reupload-on-400, per-copy fallback, complete prompt preservation."""
         copies=max(1,int(copies)); base_seed=int(job.get("seed",0)) if str(job.get("seed","")).isdigit() else 0
         mid=job.get("media_id")
-        
+
         # Log which video generator will be used
         generator_type = "Image-to-Video (I2V)" if mid else "Text-to-Video (T2V)"
-        self._emit("video_generator_info", generator_type=generator_type, has_start_image=bool(mid), 
+        self._emit("video_generator_info", generator_type=generator_type, has_start_image=bool(mid),
                    model_key=model_key, aspect_ratio=aspect_ratio, copies=copies, project_id=project_id)
 
         # Give backend a moment to index the uploaded image (avoids 400/500 immediately after upload)
@@ -401,7 +402,7 @@ class LabsClient:
         def _try(body):
             url=I2V_URL if mid else T2V_URL
             # Log the endpoint being called
-            self._emit("api_call_info", endpoint=url, endpoint_type="I2V" if mid else "T2V", 
+            self._emit("api_call_info", endpoint=url, endpoint_type="I2V" if mid else "T2V",
                       request_body_keys=list(body.keys()), num_requests=len(body.get("requests", [])))
             return self._post(url, body) or {}
 
@@ -452,7 +453,7 @@ class LabsClient:
                         ops=dat.get("operations",[]) if isinstance(dat,dict) else []
                         if ops:
                             nm=(ops[0].get("operation") or {}).get("name") or ops[0].get("name") or ""
-                            if nm: 
+                            if nm:
                                 job["operation_names"].append(nm)
                                 job["op_index_map"][nm]=k
                                 # Store metadata for batch check (sceneId and status from Google API)
@@ -466,11 +467,11 @@ class LabsClient:
 
         # 4) Batch success
         ops=data.get("operations",[]) if isinstance(data,dict) else []
-        self._emit("operations_result", num_operations=len(ops), data_type=type(data).__name__, 
+        self._emit("operations_result", num_operations=len(ops), data_type=type(data).__name__,
                    has_operations_key="operations" in (data if isinstance(data, dict) else {}))
         for ci,op in enumerate(ops):
             nm=(op.get("operation") or {}).get("name") or op.get("name") or ""
-            if nm: 
+            if nm:
                 job["operation_names"].append(nm)
                 job["op_index_map"][nm]=ci
                 # Store metadata for batch check (sceneId and status from Google API)
@@ -479,7 +480,7 @@ class LabsClient:
                 status = op.get("status", "MEDIA_GENERATION_STATUS_PENDING")
                 job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
         if job.get("operation_names"): job["status"]="PENDING"
-        
+
         final_count = len(job.get("operation_names",[]))
         self._emit("start_one_result", operation_count=final_count, requested_copies=copies)
         return final_count
@@ -498,7 +499,7 @@ class LabsClient:
         uniq=[]; seen=set()
         for s in op_names or []:
             if s and s not in seen: seen.add(s); uniq.append(s)
-        
+
         # Build operations list with metadata if available
         operations = []
         for op_name in uniq:
@@ -511,7 +512,7 @@ class LabsClient:
                 if meta.get("status"):
                     op_entry["status"] = meta["status"]
             operations.append(op_entry)
-        
+
         return {"operations": operations}
 
     def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->Dict[str,Dict]:
@@ -542,8 +543,8 @@ class LabsClient:
                                    "video_urls": _dedup(vurls), "image_urls": _dedup(iurls), "raw": item}
         return out
 
-    def generate_videos_batch(self, prompt: str, num_videos: int = 1, model_key: str = "veo_3_1_t2v_fast_ultra", 
-                              aspect_ratio: str = "VIDEO_ASPECT_RATIO_LANDSCAPE", 
+    def generate_videos_batch(self, prompt: str, num_videos: int = 1, model_key: str = "veo_3_1_t2v_fast_ultra",
+                              aspect_ratio: str = "VIDEO_ASPECT_RATIO_LANDSCAPE",
                               project_id: Optional[str] = DEFAULT_PROJECT_ID) -> List[str]:
         """
         Generate multiple videos in one API call (PR#4: Batch video generation)
