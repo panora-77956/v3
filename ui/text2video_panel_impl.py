@@ -1276,7 +1276,14 @@ class _Worker(QObject):
         self._poll_all_jobs(all_jobs, dir_videos, thumbs_dir, up4k, auto_download, quality)
 
     def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
-        """Process a batch of scenes in a separate thread"""
+        """
+        Process a batch of scenes in a separate thread
+        
+        Note: For retry operations, scenes contain 'actual_scene_num' field to preserve
+        the original scene number when retrying a single scene. This ensures logs and
+        cards show the correct scene number (e.g., "scene 2") instead of the enumeration
+        index (e.g., "scene 1" for a single-item retry batch).
+        """
         try:
             # Create event handler for diagnostic logging (uses helper method)
             def on_labs_event(event):
