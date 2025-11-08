@@ -292,6 +292,13 @@ python3 -c "from utils.config_validator import validate_config; validate_config(
 
 ## 📊 Phiên Bản / Version History
 
+### v7.2.3 (2025-11-08) - Video Ban Hang Scene-Level Generation
+- 🐛 **Fix**: Fixed scene video retry bug - videos now go to correct scene instead of wrong scene
+- 🔄 **Feature**: Added per-scene image regeneration ("🔄 Tạo lại" button now works)
+- 🎬 **Feature**: Added per-scene video generation ("🎬 Tạo Video" button now works)
+- ✅ **Enhancement**: Proper scene index tracking prevents cross-scene contamination
+- 📚 **Documentation**: Added comprehensive fix documentation in docs/VIDEO_BAN_HANG_SCENE_FIX.md
+
 ### v7.2.2 (2025-11-07) - Rate Limit & Whisk Integration
 - 🚀 **Feature**: Complete Google Labs Whisk API integration for image generation
 - 🔧 **Fix**: Improved rate limit handling with longer backoff delays (10s, 20s, 40s, 60s)
@@ -352,6 +359,6 @@ MIT License - See [LICENSE](LICENSE) file for details
 
 **Made with ❤️ by chamnv-dev**
 
-**Version:** 7.2.2  
-**Updated:** 2025-11-07  
+**Version:** 7.2.3
+**Updated:** 2025-11-08
 **Status:** ✅ Production Ready & Secure
