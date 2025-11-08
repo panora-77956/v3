@@ -192,9 +192,12 @@ class VideoGenerationWorker(QThread):
                 self.error_occurred.emit("Generation cancelled by user")
                 return
 
+            # Use actual_scene_num if provided (for retry), otherwise use scene_idx
+            actual_scene_num = scene.get("actual_scene_num", scene_idx)
+
             # Update progress: Starting scene
             self.progress_updated.emit(
-                scene_idx - 1, total_scenes, f"Submitting scene {scene_idx}..."
+                actual_scene_num - 1, total_scenes, f"Submitting scene {actual_scene_num}..."
             )
 
             ratio = scene["aspect"]
@@ -203,6 +206,7 @@ class VideoGenerationWorker(QThread):
             # Get account for this scene (multi-account or legacy)
             if account_mgr.is_multi_account_enabled():
                 # Use round-robin account selection for this scene
+                # Use scene_idx - 1 for round-robin (0-indexed), but actual_scene_num for display
                 account = account_mgr.get_account_for_scene(scene_idx - 1)
                 if not account:
                     self.log.emit("[ERROR] No enabled accounts available!")
@@ -232,7 +236,7 @@ class VideoGenerationWorker(QThread):
                     else project_id
                 )
                 self.log.emit(
-                    f"[INFO] Scene {scene_idx}: Using account '{account.name}' | "
+                    f"[INFO] Scene {actual_scene_num}: Using account '{account.name}' | "
                     f"Project: {proj_id_short}"
                 )
             else:
@@ -276,7 +280,7 @@ class VideoGenerationWorker(QThread):
                 "model": model_key,
                 "aspect_ratio": ratio
             }
-            self.log.emit(f"[INFO] Start scene {scene_idx} with {copies} copies in one batch…")
+            self.log.emit(f"[INFO] Start scene {actual_scene_num} with {copies} copies in one batch…")
             rc = client.start_one(
                 body, model_key, ratio, scene["prompt"], copies=copies, project_id=project_id
             )
@@ -286,12 +290,12 @@ class VideoGenerationWorker(QThread):
                 actual_count = len(body.get("operation_names", []))
 
                 if actual_count < copies:
-                    self.log.emit(f"[WARN] Scene {scene_idx}: API returned {actual_count} operations but {copies} copies were requested")
+                    self.log.emit(f"[WARN] Scene {actual_scene_num}: API returned {actual_count} operations but {copies} copies were requested")
 
                 # Create cards only for videos that actually exist
                 for copy_idx in range(1, actual_count + 1):
                     card = {
-                        "scene": scene_idx,
+                        "scene": actual_scene_num,
                         "copy": copy_idx,
                         "status": "PROCESSING",
                         "json": scene["prompt"],
@@ -306,7 +310,7 @@ class VideoGenerationWorker(QThread):
                     job_info = {
                         'card': card,
                         'body': body,
-                        'scene': scene_idx,
+                        'scene': actual_scene_num,
                         'copy': copy_idx
                     }
                     jobs.append(job_info)
@@ -314,7 +318,7 @@ class VideoGenerationWorker(QThread):
                 # All copies failed to start
                 for copy_idx in range(1, copies + 1):
                     card = {
-                        "scene": scene_idx,
+                        "scene": actual_scene_num,
                         "copy": copy_idx,
                         "status": "FAILED_START",
                         "error_reason": "Failed to start video generation",
