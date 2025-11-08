@@ -467,7 +467,20 @@ class LabsFlowClient:
                 attempts_made += 1
                 skip_count = 0  # Reset skip count when we make an actual attempt
 
-                r=requests.post(url, headers=_headers(current_token), json=payload, timeout=self.timeout)
+                # FIX: Stringify payload for text/plain Content-Type
+                headers = _headers(current_token)
+                content_type = headers.get("content-type", "")
+
+                if content_type.startswith("text/plain"):
+                    # Content-Type is text/plain → stringify payload
+                    # This matches Google Labs Flow API requirements
+                    data_to_send = json.dumps(payload, ensure_ascii=False)
+                    r = requests.post(url, headers=headers, data=data_to_send, timeout=self.timeout)
+                else:
+                    # Content-Type is application/json → use json= parameter
+                    # (backward compatibility)
+                    r = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
+
                 if r.status_code==200:
                     self._emit("http_ok", code=200)
                     try: return r.json()
