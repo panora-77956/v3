@@ -269,8 +269,17 @@ class StoryboardView(QWidget):
                     }
                     QPushButton:hover { background: #F57C00; }
                 """)
-                # BUG FIX #1: Use main_panel reference instead of parent() to avoid AttributeError
-                retry_btn.clicked.connect(lambda checked, sn=scene_num: self.main_panel._retry_failed_scene(sn))
+                
+                # FIX: Add logging and proper connection with error handling
+                def on_retry_click():
+                    print(f"[DEBUG] Retry button clicked for scene {scene_num}")
+                    if hasattr(self.main_panel, '_retry_failed_scene'):
+                        self.main_panel._append_log(f"[INFO] 🔄 Retry button clicked for scene {scene_num}")
+                        self.main_panel._retry_failed_scene(scene_num)
+                    else:
+                        print(f"[ERROR] main_panel does not have _retry_failed_scene method!")
+                
+                retry_btn.clicked.connect(on_retry_click)
                 card_layout.addWidget(retry_btn)
 
         card.scene_num = scene_num
@@ -2263,6 +2272,11 @@ class Text2VideoPanelV5(QWidget):
                 self._append_log("[WARN] PromptViewer not available")    
     def _retry_failed_scene(self, scene_num):
         """BUG FIX #3: Retry failed videos for a specific scene"""
+        # ADD: Log function call
+        self._append_log(f"[INFO] ═══════════════════════════════════════")
+        self._append_log(f"[INFO] 🔄 RETRY REQUESTED for Scene {scene_num}")
+        self._append_log(f"[INFO] ═══════════════════════════════════════")
+        
         if scene_num < 1 or scene_num > self.table.rowCount():
             self._append_log(f"[ERR] Invalid scene number: {scene_num}")
             return
@@ -2274,31 +2288,51 @@ class Text2VideoPanelV5(QWidget):
         failed_copies = [copy_num for copy_num, info in vids.items() 
                         if info.get('status') in ('FAILED', 'ERROR', 'FAILED_START', 'DONE_NO_URL', 'DOWNLOAD_FAILED')]
 
+        # ADD: Log what was found
+        self._append_log(f"[INFO] Found {len(failed_copies)} failed video(s) for scene {scene_num}")
+        self._append_log(f"[INFO] Failed copies: {failed_copies}")
+
         if not failed_copies:
             self._append_log(f"[INFO] Cảnh {scene_num}: Không có video lỗi để retry")
             return
 
+        # ADD: More detailed confirmation dialog
         reply = QMessageBox.question(
             self, 'Xác nhận retry',
-            f'Retry {len(failed_copies)} video lỗi của cảnh {scene_num}?',
+            f'Retry {len(failed_copies)} video lỗi của cảnh {scene_num}?\n\n'
+            f'Failed copies: {", ".join(map(str, failed_copies))}\n\n'
+            f'Prompt sẽ được gửi lại đến Google Labs Flow API.',
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes
         )
 
         if reply == QMessageBox.No:
+            self._append_log(f"[INFO] User cancelled retry for scene {scene_num}")
             return
 
-        self._append_log(f"[INFO] Đang retry {len(failed_copies)} video lỗi của cảnh {scene_num}...")
+        self._append_log("[INFO] ✓ User confirmed retry")
+        self._append_log(
+            f"[INFO] Đang retry {len(failed_copies)} video lỗi của cảnh {scene_num}..."
+        )
 
         # Get scene data from table
         row = scene_num - 1
         vi = self.table.item(row, 1).text() if self.table.item(row, 1) else ""
         tgt = self.table.item(row, 2).text() if self.table.item(row, 2) else vi
 
+        # ADD: Log scene data
+        vi_preview = f"{vi[:50]}..." if len(vi) > 50 else vi
+        tgt_preview = f"{tgt[:50]}..." if len(tgt) > 50 else tgt
+        self._append_log(f"[INFO] Scene data - VI: {vi_preview}")
+        self._append_log(f"[INFO] Scene data - TGT: {tgt_preview}")
+
         lang_code = self.cb_out_lang.currentData()
         ratio_key = self.cb_ratio.currentText()
         ratio = _ASPECT_MAP.get(ratio_key, "VIDEO_ASPECT_RATIO_LANDSCAPE")
         style = self.cb_style.currentText()
+
+        # ADD: Log settings
+        self._append_log(f"[INFO] Settings - Lang: {lang_code}, Ratio: {ratio_key}, Style: {style}")
 
         character_bible_basic = (
             self._script_data.get("character_bible", [])
@@ -2320,13 +2354,22 @@ class Text2VideoPanelV5(QWidget):
         if build_prompt_json:
             tts_provider = self.cb_tts_provider.currentData()
             voice_id = self.ed_custom_voice.text().strip() or self.cb_voice.currentData()
-            voice_name = self.cb_voice.currentText() if not self.ed_custom_voice.text().strip() else ""
+            voice_name = (
+                self.cb_voice.currentText()
+                if not self.ed_custom_voice.text().strip()
+                else ""
+            )
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
-            quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
-            
-            # Issue #33: Get base_seed from script data for style consistency
-            base_seed = self._script_data.get("base_seed") if self._script_data else None
+            quality_text = (
+                self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+            )
+
+            # ADD: Get base_seed from context for consistency
+            base_seed = self._ctx.get("base_seed") if self._ctx else None
+
+            # ADD: Log prompt building
+            self._append_log(f"[INFO] Building prompt JSON for scene {scene_num}...")
 
             j = build_prompt_json(
                 scene_num, vi, tgt, lang_code, ratio_key, style,
@@ -2341,11 +2384,15 @@ class Text2VideoPanelV5(QWidget):
                 topic=topic,
                 quality=quality_text,
                 dialogues=dialogues,
-                base_seed=base_seed  # Issue #33: Pass base_seed for consistency
+                base_seed=base_seed  # Use same seed for consistency
             )
 
+            # ADD: Log prompt JSON size
+            prompt_json_str = json.dumps(j, ensure_ascii=False, indent=2)
+            self._append_log(f"[INFO] Prompt JSON size: {len(prompt_json_str)} chars")
+
             scenes = [{
-                "prompt": json.dumps(j, ensure_ascii=False, indent=2),
+                "prompt": prompt_json_str,
                 "aspect": ratio
             }]
         else:
@@ -2353,7 +2400,14 @@ class Text2VideoPanelV5(QWidget):
             return
 
         model_display = self.cb_model.currentText()
-        model_key = get_model_key_from_display(model_display) if get_model_key_from_display else model_display
+        model_key = (
+            get_model_key_from_display(model_display)
+            if get_model_key_from_display
+            else model_display
+        )
+
+        # ADD: Log model info
+        self._append_log(f"[INFO] Using model: {model_display} (key: {model_key})")
 
         payload = dict(
             scenes=scenes,
@@ -2370,8 +2424,20 @@ class Text2VideoPanelV5(QWidget):
             self._append_log("[ERR] Không tìm thấy thư mục video")
             return
 
-        self._append_log(f"[INFO] Bắt đầu retry {len(failed_copies)} video cho cảnh {scene_num}...")
+        # ADD: Log payload info
+        self._append_log(
+            f"[INFO] Payload - Copies: {payload['copies']}, Model: {payload['model_key']}"
+        )
+        self._append_log(f"[INFO] Payload - Dir: {payload['dir_videos']}")
+        self._append_log(
+            f"[INFO] Bắt đầu retry {len(failed_copies)} video cho cảnh {scene_num}..."
+        )
+        self._append_log("[INFO] Sending to Google Labs Flow API...")
+
         self._run_in_thread("video", payload)
+
+        # ADD: Final log
+        self._append_log("[INFO] Retry request sent to worker thread")
 
     def _play_video(self, video_path):
         """Play video file using system default player"""
