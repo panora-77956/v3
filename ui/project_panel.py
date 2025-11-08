@@ -155,7 +155,11 @@ class SeqWorker(QObject):
 
 class CheckWorker(QObject):
     log = pyqtSignal(str,str); progress = pyqtSignal(int, str); row_update = pyqtSignal(int, dict); finished = pyqtSignal()
-    def __init__(self, client, jobs): super().__init__(); self.client=client; self.jobs=jobs
+    def __init__(self, client, jobs, project_id=None):
+        super().__init__()
+        self.client=client
+        self.jobs=jobs
+        self.project_id=project_id or DEFAULT_PROJECT_ID
     def run(self):
         names=[n for j in self.jobs for n in j.get("operation_names",[])]
         if not names: self.log.emit("INFO","[Check] chưa có operation."); self.finished.emit(); return
@@ -169,7 +173,7 @@ class CheckWorker(QObject):
         
         self.progress.emit(0, "Đang check…")
         try:
-            rs=self.client.batch_check_operations(names, metadata)
+            rs=self.client.batch_check_operations(names, metadata, self.project_id)
         except Exception as e:
             self.log.emit("ERR", f"Check lỗi: {e.__class__.__name__}: {e}"); self.finished.emit(); return
         total=max(1,len(self.jobs)); done=0
@@ -645,7 +649,10 @@ class ProjectPanel(QWidget):
 
     def _check(self):
         if not getattr(self,"client",None) or not self.jobs: return
-        self._t2=QThread(self); self._w2=CheckWorker(self.client,self.jobs); self._w2.moveToThread(self._t2)
+        # Get project_id from settings
+        st = self.settings_provider()
+        project_id = (st.get("default_project_id") or DEFAULT_PROJECT_ID) if st else DEFAULT_PROJECT_ID
+        self._t2=QThread(self); self._w2=CheckWorker(self.client,self.jobs,project_id); self._w2.moveToThread(self._t2)
         self._t2.started.connect(self._w2.run); self._w2.progress.connect(self._on_prog); self._w2.row_update.connect(self._refresh_row)
         self._w2.log.connect(lambda lv,msg: getattr(self.console, lv.lower())(msg) if hasattr(self.console, lv.lower()) else self.console.info(msg))
         def on_finished():

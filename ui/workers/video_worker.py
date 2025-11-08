@@ -137,6 +137,12 @@ class VideoGenerationWorker(QThread):
         p = self.payload
         st = cfg.load()
 
+        # Ensure config is valid
+        if not st or not isinstance(st, dict):
+            self.log.emit("[ERROR] Configuration file is invalid or missing!")
+            self.error_occurred.emit("Invalid configuration")
+            return
+
         # Get account manager for multi-account support
         account_mgr = get_account_manager()
 
@@ -148,9 +154,27 @@ class VideoGenerationWorker(QThread):
             # For now, fall back to sequential
             self.log.emit("[WARN] Parallel processing not yet implemented in VideoWorker, using sequential")
 
-        # Get configuration
+        # Get tokens with validation
         tokens = st.get("tokens") or []
-        project_id = st.get("default_project_id") or DEFAULT_PROJECT_ID
+        if not tokens:
+            self.log.emit("[ERROR] No Google Labs tokens configured! Please add tokens in API Credentials.")
+            self.error_occurred.emit("No tokens configured")
+            return
+
+        # Get project_id with strict validation and fallback
+        project_id = st.get("default_project_id")
+        if not project_id or not isinstance(project_id, str) or not project_id.strip():
+            # Use fallback if missing/invalid
+            project_id = DEFAULT_PROJECT_ID
+            self.log.emit(f"[INFO] Using default project_id: {project_id}")
+        else:
+            project_id = project_id.strip()
+            self.log.emit(f"[INFO] Using configured project_id: {project_id}")
+        
+        # Validate project_id format (should be UUID-like)
+        if len(project_id) < 10:
+            self.log.emit(f"[WARN] Project ID '{project_id}' seems invalid (too short), using default")
+            project_id = DEFAULT_PROJECT_ID
 
         copies = p["copies"]
         title = p["title"]
@@ -275,7 +299,7 @@ class VideoGenerationWorker(QThread):
 
             # Batch check with error handling
             try:
-                rs = client.batch_check_operations(names, metadata)
+                rs = client.batch_check_operations(names, metadata, project_id)
             except Exception as e:
                 self.log.emit(f"[WARN] Lỗi kiểm tra trạng thái (vòng {poll_round + 1}): {e}")
                 time.sleep(10)

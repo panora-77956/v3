@@ -678,16 +678,17 @@ class LabsFlowClient:
         if job.get("operation_names"): job["status"]="PENDING"
         return len(job.get("operation_names",[]))
 
-    def _wrap_ops(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->dict:
+    def _wrap_ops(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None, project_id: Optional[str] = None)->dict:
         """
         Wrap operation names into the payload format for batch check.
         
         Args:
             op_names: List of operation names
             metadata: Optional dict mapping operation name to metadata (sceneId, status)
+            project_id: Optional project ID for clientContext
         
         Returns:
-            Payload dict with operations list
+            Payload dict with operations list and clientContext
         """
         uniq=[]; seen=set()
         for s in op_names or []:
@@ -706,21 +707,32 @@ class LabsFlowClient:
                     op_entry["status"] = meta["status"]
             operations.append(op_entry)
 
-        return {"operations": operations}
+        payload = {"operations": operations}
+        
+        # CRITICAL FIX: Add clientContext (required by Google Labs API)
+        if project_id:
+            payload["clientContext"] = {
+                "projectId": project_id,
+                "tool": "PINHOLE",
+                "userPaygateTier": "PAYGATE_TIER_TWO"
+            }
+        
+        return payload
 
-    def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->Dict[str,Dict]:
+    def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None, project_id: Optional[str] = DEFAULT_PROJECT_ID)->Dict[str,Dict]:
         """
         Check status of video generation operations.
         
         Args:
             op_names: List of operation names to check
             metadata: Optional dict mapping operation name to metadata (sceneId, status)
+            project_id: Project ID for clientContext (defaults to DEFAULT_PROJECT_ID)
         
         Returns:
             Dict mapping operation name to status info
         """
         if not op_names: return {}
-        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata)) or {}
+        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, project_id)) or {}
         out={}
         def _dedup(xs):
             seen=set(); r=[]
