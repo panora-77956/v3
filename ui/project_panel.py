@@ -185,14 +185,18 @@ class CheckWorker(QObject):
                 # Multi-account mode: Group operations by account and check separately
                 from services.google.labs_flow_client import LabsFlowClient
                 
-                # Group jobs by account
+                # Group jobs by account (and handle jobs without account_name)
                 jobs_by_account = {}
+                jobs_without_account = []
+                
                 for j in self.jobs:
                     acc_name = j.get("account_name")
                     if acc_name:
                         if acc_name not in jobs_by_account:
                             jobs_by_account[acc_name] = []
                         jobs_by_account[acc_name].append(j)
+                    else:
+                        jobs_without_account.append(j)
                 
                 # Check each account's operations with its own client
                 for acc_name, account_jobs in jobs_by_account.items():
@@ -225,6 +229,22 @@ class CheckWorker(QObject):
                             rs.update(account_rs)
                         except Exception as e:
                             self.log.emit("ERR", f"Check lỗi cho {acc_name}: {e.__class__.__name__}: {e}")
+                
+                # Check jobs without account_name using default client (fallback)
+                if jobs_without_account and self.client:
+                    fallback_names = [n for j in jobs_without_account for n in j.get("operation_names", [])]
+                    fallback_metadata = {}
+                    for j in jobs_without_account:
+                        op_meta = j.get("operation_metadata", {})
+                        if op_meta:
+                            fallback_metadata.update(op_meta)
+                    
+                    if fallback_names:
+                        try:
+                            fallback_rs = self.client.batch_check_operations(fallback_names, fallback_metadata)
+                            rs.update(fallback_rs)
+                        except Exception as e:
+                            self.log.emit("ERR", f"Check lỗi cho jobs không có account: {e.__class__.__name__}: {e}")
             else:
                 # Single-account mode (backward compatibility)
                 rs=self.client.batch_check_operations(names, metadata)
