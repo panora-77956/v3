@@ -636,13 +636,9 @@ class LabsFlowClient:
                 reqs.append(item)
             body={"requests":reqs}
 
-            # FIX: Add ALL required clientContext fields (not just projectId)
+            # Add clientContext with projectId
             if project_id:
-                body["clientContext"]={
-                    "projectId":project_id,
-                    "tool": "PINHOLE",                    # ← MISSING FIELD!
-                    "userPaygateTier": "PAYGATE_TIER_TWO"  # ← MISSING FIELD!
-                }
+                body["clientContext"] = {"projectId": project_id}
 
             return body
 
@@ -857,13 +853,9 @@ class LabsFlowClient:
 
         payload = {"requests": requests_list}
 
-        # FIX: Add ALL clientContext fields
+        # Add clientContext with projectId
         if project_id:
-            payload["clientContext"] = {
-                "projectId": project_id,
-                "tool": "PINHOLE",
-                "userPaygateTier": "PAYGATE_TIER_TWO"
-            }
+            payload["clientContext"] = {"projectId": project_id}
 
         # Call T2V endpoint
         data = self._post(T2V_URL, payload) or {}

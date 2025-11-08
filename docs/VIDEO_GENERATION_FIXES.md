@@ -281,8 +281,57 @@ All 4 critical issues resolved. System now provides:
 
 ---
 
+## Critical Fix: HTTP 400 Error (2025-11-08)
+
+### ✅ Issue: HTTP 400 "Request contains an invalid argument"
+
+**Problem**: Video generation failing with HTTP 400 errors immediately after submitting scenes:
+```
+[INFO] Start scene 1 with 1 copies in one batch…
+[ERROR] HTTP 400: Request contains an invalid argument.
+[ERROR] HTTP 400: Request contains an invalid argument.
+[ERROR] HTTP 400: Request contains an invalid argument.
+```
+
+**Root Cause**: 
+- `services/google/labs_flow_client.py` had incorrect `clientContext` fields
+- Added `"tool": "PINHOLE"` and `"userPaygateTier": "PAYGATE_TIER_TWO"` fields
+- These fields were marked as "← MISSING FIELD!" but are NOT accepted by Google Labs API
+- The working implementation in `services/labs_flow_service.py` only uses `{"projectId": project_id}`
+
+**Solution**: 
+- Removed `"tool": "PINHOLE"` from clientContext (2 locations)
+- Removed `"userPaygateTier": "PAYGATE_TIER_TWO"` from clientContext (2 locations)
+- Simplified clientContext to match API specification: `{"projectId": project_id}`
+
+**Files Modified**:
+- `services/google/labs_flow_client.py` (lines 640-641, 856-858)
+
+**Code Changes**:
+```python
+# Before (INCORRECT - causes HTTP 400):
+body["clientContext"] = {
+    "projectId": project_id,
+    "tool": "PINHOLE",
+    "userPaygateTier": "PAYGATE_TIER_TWO"
+}
+
+# After (CORRECT):
+body["clientContext"] = {"projectId": project_id}
+```
+
+**Validation**:
+- ✅ Syntax check passed
+- ✅ Structure matches working implementation in labs_flow_service.py
+- ✅ Security scan passed (0 vulnerabilities)
+- ✅ No other references to removed fields in codebase
+
+**Expected Result**: Video generation should now work without HTTP 400 errors.
+
+---
+
 ## Author
 
 Implementation by GitHub Copilot
-Date: 2025-11-06
+Date: 2025-11-06 (Issues #1-4), 2025-11-08 (HTTP 400 Fix)
 Issue Reporter: @nguyen2715cc-cell
