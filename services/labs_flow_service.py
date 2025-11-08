@@ -222,10 +222,47 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         main_style = "2D Hand-Drawn Anime"  # Default
         is_anime_style = False
         is_realistic_style = False
+        is_genre_style = False
+        genre_style_type = None
         
-        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower or "2d animation" in style_lower or "cel-shading" in style_lower:
+        # Check genre-specific styles first (more specific patterns)
+        if "sci-fi" in style_lower or "futuristic" in style_lower or "cyberpunk" in style_lower:
+            main_style = "Sci-Fi / Futuristic"
+            is_genre_style = True
+            genre_style_type = "sci_fi"
+        elif "horror" in style_lower or ("dark" in style_lower and "eerie" in style_lower):
+            main_style = "Horror / Dark Thriller"
+            is_genre_style = True
+            genre_style_type = "horror"
+        elif "fantasy" in style_lower or "magical" in style_lower or "mystical" in style_lower:
+            main_style = "Fantasy / Magical"
+            is_genre_style = True
+            genre_style_type = "fantasy"
+        elif "action" in style_lower or ("dynamic" in style_lower and "fast-paced" in style_lower):
+            main_style = "Action / High Energy"
+            is_genre_style = True
+            genre_style_type = "action"
+        elif "romance" in style_lower or ("dreamy" in style_lower and "soft lighting" in style_lower):
+            main_style = "Romance / Soft Aesthetic"
+            is_genre_style = True
+            genre_style_type = "romance"
+        elif "comedy" in style_lower or ("playful" in style_lower and "bright" in style_lower):
+            main_style = "Comedy / Playful"
+            is_genre_style = True
+            genre_style_type = "comedy"
+        elif "documentary" in style_lower or "educational" in style_lower:
+            main_style = "Documentary / Educational"
+            is_genre_style = True
+            genre_style_type = "documentary"
+        elif "film noir" in style_lower or ("black and white" in style_lower and "vintage" in style_lower):
+            main_style = "Film Noir / Vintage"
+            is_genre_style = True
+            genre_style_type = "film_noir"
+        # Then check anime styles
+        elif "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower or "2d animation" in style_lower or "cel-shading" in style_lower:
             main_style = "2D Hand-Drawn Anime Animation"
             is_anime_style = True
+        # Finally check realistic styles (most generic)
         elif "realistic" in style_lower or "photorealistic" in style_lower:
             main_style = "Photorealistic Live Action"
             is_realistic_style = True
@@ -330,6 +367,110 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 "✗ Anime-style large eyes or simplified faces\n"
                 "✗ Painted or illustrated backgrounds\n\n"
             )
+        elif is_genre_style:
+            # Add genre-specific style requirements
+            style_lock += (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"{main_style.upper()} STYLE REQUIREMENTS:\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            )
+            
+            if genre_style_type == "sci_fi":
+                style_lock += (
+                    "1. MUST have futuristic, sci-fi aesthetic throughout\n"
+                    "2. MUST use neon lighting, holographic effects, or tech elements\n"
+                    "3. MUST include futuristic technology, cyberpunk, or sci-fi elements\n"
+                    "4. MUST maintain consistent futuristic visual language\n"
+                    "5. Color palette: neon blues, purples, cyans, or high-tech colors\n"
+                    "6. Environment: futuristic cityscapes, space, or tech settings\n"
+                    "7. NO medieval, ancient, or rustic aesthetics\n"
+                    "8. NO natural or traditional elements unless integrated with tech\n\n"
+                )
+            elif genre_style_type == "horror":
+                style_lock += (
+                    "1. MUST have dark, eerie, suspenseful atmosphere throughout\n"
+                    "2. MUST use gothic, ominous, or horror visual elements\n"
+                    "3. MUST maintain consistent horror aesthetic and mood\n"
+                    "4. Lighting: dark, shadowy, dramatic contrasts\n"
+                    "5. Color palette: desaturated, dark tones, ominous colors\n"
+                    "6. Mood: tense, eerie, unsettling, suspenseful\n"
+                    "7. NO bright, cheerful, or colorful elements\n"
+                    "8. NO happy, comedy, or upbeat aesthetics\n\n"
+                )
+            elif genre_style_type == "fantasy":
+                style_lock += (
+                    "1. MUST have magical, enchanted, mystical aesthetic\n"
+                    "2. MUST use fantasy elements: magic, mythical creatures, enchantments\n"
+                    "3. MUST maintain consistent fantasy visual language\n"
+                    "4. Color palette: vibrant, ethereal, magical colors\n"
+                    "5. Environment: enchanted forests, magical realms, fantasy settings\n"
+                    "6. Atmosphere: mystical, otherworldly, fantastical\n"
+                    "7. NO realistic modern settings or technology\n"
+                    "8. NO scientific or technological aesthetics\n\n"
+                )
+            elif genre_style_type == "action":
+                style_lock += (
+                    "1. MUST have dynamic, high-energy aesthetic throughout\n"
+                    "2. MUST convey intense, fast-paced, explosive action\n"
+                    "3. MUST maintain consistent action-oriented visual language\n"
+                    "4. Motion: dynamic camera work, fast movements\n"
+                    "5. Energy: intense, high-impact, explosive visuals\n"
+                    "6. Composition: dynamic angles, motion blur, impact frames\n"
+                    "7. NO slow, static, or calm aesthetics\n"
+                    "8. NO peaceful or tranquil settings\n\n"
+                )
+            elif genre_style_type == "romance":
+                style_lock += (
+                    "1. MUST have soft, dreamy, romantic aesthetic throughout\n"
+                    "2. MUST use soft lighting, warm colors, gentle atmosphere\n"
+                    "3. MUST maintain consistent romantic visual language\n"
+                    "4. Lighting: soft, warm, golden hour, dreamy\n"
+                    "5. Color palette: warm tones, pastels, soft colors\n"
+                    "6. Mood: gentle, intimate, dreamy, romantic\n"
+                    "7. NO harsh lighting or dark atmospheres\n"
+                    "8. NO violent, aggressive, or intense aesthetics\n\n"
+                )
+            elif genre_style_type == "comedy":
+                style_lock += (
+                    "1. MUST have bright, playful, fun aesthetic throughout\n"
+                    "2. MUST use vibrant colors, exaggerated expressions, playful elements\n"
+                    "3. MUST maintain consistent comedy/playful visual language\n"
+                    "4. Lighting: bright, cheerful, well-lit\n"
+                    "5. Color palette: vibrant, saturated, fun colors\n"
+                    "6. Mood: playful, fun, lighthearted, energetic\n"
+                    "7. NO dark, serious, or dramatic atmospheres\n"
+                    "8. NO horror or intense emotional aesthetics\n\n"
+                )
+            elif genre_style_type == "documentary":
+                style_lock += (
+                    "1. MUST have realistic, clear, informative aesthetic\n"
+                    "2. MUST use natural lighting, educational presentation\n"
+                    "3. MUST maintain consistent documentary visual language\n"
+                    "4. Style: realistic, clear, professional, educational\n"
+                    "5. Lighting: natural, even, well-balanced\n"
+                    "6. Presentation: informative, clear, documentary-style\n"
+                    "7. NO stylized, artistic, or abstract elements\n"
+                    "8. NO fantasy or overly creative aesthetics\n\n"
+                )
+            elif genre_style_type == "film_noir":
+                style_lock += (
+                    "1. MUST have black and white or desaturated aesthetic\n"
+                    "2. MUST use dramatic shadows, high contrast, vintage 1940s look\n"
+                    "3. MUST maintain consistent film noir visual language\n"
+                    "4. Lighting: dramatic shadows, chiaroscuro, high contrast\n"
+                    "5. Color: black and white or heavily desaturated\n"
+                    "6. Atmosphere: vintage, 1940s aesthetic, noir mood\n"
+                    "7. NO colorful, bright, or modern aesthetics\n"
+                    "8. NO futuristic or contemporary styles\n\n"
+                )
+            
+            # Add genre-specific tags from visual_style_tags
+            style_lock += (
+                f"✅ REQUIRED CHARACTERISTICS FOR {main_style.upper()}:\n"
+            )
+            for tag in visual_style_tags:
+                style_lock += f"✓ {tag}\n"
+            style_lock += "\n"
         
         style_lock += (
             "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
