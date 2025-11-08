@@ -4,15 +4,15 @@ Video Generation Worker - Non-blocking video generation using QThread
 Prevents UI freezing during video generation API calls
 """
 import os
-import json
-import time
 import shutil
 import subprocess
+import time
+
 from PyQt5.QtCore import QThread, pyqtSignal
 
+from services.account_manager import get_account_manager
 from services.google.labs_flow_client import DEFAULT_PROJECT_ID, LabsFlowClient
 from services.utils.video_downloader import VideoDownloader
-from services.account_manager import get_account_manager
 from utils import config as cfg
 from utils.filename_sanitizer import sanitize_filename
 
@@ -29,7 +29,7 @@ class VideoGenerationWorker(QThread):
         job_card: Emitted for video status updates (card_dict)
         log: Emitted for log messages (log_message)
     """
-    
+
     # Signals
     progress_updated = pyqtSignal(int, int, str)  # scene_idx, total_scenes, status
     scene_completed = pyqtSignal(int, str)  # scene_idx, video_path
@@ -37,7 +37,7 @@ class VideoGenerationWorker(QThread):
     error_occurred = pyqtSignal(str)  # error_message
     job_card = pyqtSignal(dict)  # card data for UI updates
     log = pyqtSignal(str)  # log messages
-    
+
     def __init__(self, payload, parent=None):
         """
         Initialize video generation worker.
@@ -58,12 +58,12 @@ class VideoGenerationWorker(QThread):
         self.payload = payload
         self.cancelled = False
         self.video_downloader = VideoDownloader(log_callback=lambda msg: self.log.emit(msg))
-    
+
     def cancel(self):
         """Cancel the video generation operation."""
         self.cancelled = True
         self.log.emit("[INFO] Video generation cancelled by user")
-    
+
     def _handle_labs_event(self, event):
         """Handle diagnostic events from LabsClient."""
         kind = event.get("kind", "")
@@ -97,7 +97,7 @@ class VideoGenerationWorker(QThread):
             code = event.get("code", "")
             detail = event.get("detail", "")
             self.log.emit(f"[ERROR] HTTP {code}: {detail}")
-    
+
     def _download(self, url, dst_path):
         """Download video from URL."""
         try:
@@ -106,7 +106,7 @@ class VideoGenerationWorker(QThread):
         except Exception as e:
             self.log.emit(f"[ERR] Download fail: {e}")
             return False
-    
+
     def _make_thumb(self, video_path, out_dir, scene, copy):
         """Generate thumbnail from video."""
         try:
@@ -120,7 +120,7 @@ class VideoGenerationWorker(QThread):
         except Exception as e:
             self.log.emit(f"[WARN] Tạo thumbnail lỗi: {e}")
         return ""
-    
+
     def run(self):
         """Execute video generation in background thread."""
         try:
@@ -131,57 +131,57 @@ class VideoGenerationWorker(QThread):
             self.log.emit(f"[ERR] Worker error: {e}")
             self.log.emit(f"[DEBUG] {error_details}")
             self.error_occurred.emit(str(e))
-    
+
     def _run_video(self):
         """Main video generation logic."""
         p = self.payload
         st = cfg.load()
-        
+
         # Get account manager for multi-account support
         account_mgr = get_account_manager()
-        
+
         # Check if multi-account mode is enabled
         if account_mgr.is_multi_account_enabled():
             self.log.emit(f"[INFO] Multi-account mode: {len(account_mgr.get_enabled_accounts())} accounts active")
-            self.log.emit(f"[INFO] Using PARALLEL processing for faster generation")
+            self.log.emit("[INFO] Using PARALLEL processing for faster generation")
             # Note: Parallel processing would require additional implementation
             # For now, fall back to sequential
-            self.log.emit(f"[WARN] Parallel processing not yet implemented in VideoWorker, using sequential")
-        
+            self.log.emit("[WARN] Parallel processing not yet implemented in VideoWorker, using sequential")
+
         # Get configuration
         tokens = st.get("tokens") or []
         project_id = st.get("default_project_id") or DEFAULT_PROJECT_ID
-        
+
         copies = p["copies"]
         title = p["title"]
         dir_videos = p["dir_videos"]
         thumbs_dir = os.path.join(dir_videos, "thumbs")
-        
+
         total_scenes = len(p["scenes"])
         jobs = []
         client_cache = {}
-        
+
         # Event handler for diagnostic logging
         def on_labs_event(event):
             self._handle_labs_event(event)
-        
+
         # Start video generation for each scene
         for scene_idx, scene in enumerate(p["scenes"], start=1):
             if self.cancelled:
                 self.error_occurred.emit("Generation cancelled by user")
                 return
-            
+
             # Update progress: Starting scene
             self.progress_updated.emit(scene_idx - 1, total_scenes, f"Submitting scene {scene_idx}...")
-            
+
             ratio = scene["aspect"]
             model_key = p.get("model_key", "")
-            
+
             # Create or reuse client for this project_id
             if project_id not in client_cache:
                 client_cache[project_id] = LabsFlowClient(tokens, on_event=on_labs_event)
             client = client_cache[project_id]
-            
+
             # Single API call with copies parameter
             body = {
                 "prompt": scene["prompt"],
@@ -191,14 +191,14 @@ class VideoGenerationWorker(QThread):
             }
             self.log.emit(f"[INFO] Start scene {scene_idx} with {copies} copies in one batch…")
             rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=project_id)
-            
+
             if rc > 0:
                 # Only create cards for operations that actually exist in the API response
                 actual_count = len(body.get("operation_names", []))
-                
+
                 if actual_count < copies:
                     self.log.emit(f"[WARN] Scene {scene_idx}: API returned {actual_count} operations but {copies} copies were requested")
-                
+
                 # Create cards only for videos that actually exist
                 for copy_idx in range(1, actual_count + 1):
                     card = {
@@ -212,7 +212,7 @@ class VideoGenerationWorker(QThread):
                         "dir": dir_videos
                     }
                     self.job_card.emit(card)
-                    
+
                     # Store card data with copy index for operation name mapping
                     job_info = {
                         'card': card,
@@ -236,24 +236,24 @@ class VideoGenerationWorker(QThread):
                         "dir": dir_videos
                     }
                     self.job_card.emit(card)
-        
+
         # Polling loop with improved error handling
         retry_count = {}
         download_retry_count = {}
         max_retries = 3
         max_download_retries = 5
-        
+
         completed_videos = []
-        
+
         for poll_round in range(120):
             if self.cancelled:
                 self.log.emit("[INFO] Đã dừng xử lý theo yêu cầu người dùng.")
                 return
-            
+
             if not jobs:
                 self.log.emit("[INFO] Tất cả video đã hoàn tất hoặc thất bại.")
                 break
-            
+
             # Update progress based on completed jobs
             completed_count = len(completed_videos)
             current_scene = min(completed_count + 1, total_scenes)
@@ -262,7 +262,7 @@ class VideoGenerationWorker(QThread):
                 total_scenes,
                 f"Processing... ({completed_count}/{total_scenes} scenes completed)"
             )
-            
+
             # Extract all operation names from all jobs
             names = []
             metadata = {}
@@ -272,7 +272,7 @@ class VideoGenerationWorker(QThread):
                 op_meta = job_dict.get("operation_metadata", {})
                 if op_meta:
                     metadata.update(op_meta)
-            
+
             # Batch check with error handling
             try:
                 rs = client.batch_check_operations(names, metadata)
@@ -280,20 +280,20 @@ class VideoGenerationWorker(QThread):
                 self.log.emit(f"[WARN] Lỗi kiểm tra trạng thái (vòng {poll_round + 1}): {e}")
                 time.sleep(10)
                 continue
-            
+
             new_jobs = []
             for job_info in jobs:
                 card = job_info['card']
                 job_dict = job_info['body']
                 copy_idx = job_info['copy']
-                
+
                 # Get operation names list and map this copy to its operation
                 op_names = job_dict.get("operation_names", [])
                 if not op_names:
                     if 'no_op_count' not in job_info:
                         job_info['no_op_count'] = 0
                     job_info['no_op_count'] += 1
-                    
+
                     if job_info['no_op_count'] > 3:
                         sc = card['scene']
                         cp = card['copy']
@@ -301,7 +301,7 @@ class VideoGenerationWorker(QThread):
                     else:
                         new_jobs.append(job_info)
                     continue
-                
+
                 # Map copy index to the correct operation name
                 op_index = copy_idx - 1
                 if op_index >= len(op_names):
@@ -312,53 +312,53 @@ class VideoGenerationWorker(QThread):
                     card["error_reason"] = "Operation index out of bounds"
                     self.job_card.emit(card)
                     continue
-                
+
                 op_name = op_names[op_index]
                 op_result = rs.get(op_name) or {}
-                
+
                 # Check raw API response
                 raw_response = op_result.get('raw', {})
                 status = raw_response.get('status', '')
-                
+
                 scene = card["scene"]
                 copy_num = card["copy"]
-                
+
                 if status == 'MEDIA_GENERATION_STATUS_SUCCESSFUL':
                     # Extract video URL
                     op_metadata = raw_response.get('operation', {}).get('metadata', {})
                     video_info = op_metadata.get('video', {})
                     video_url = video_info.get('fifeUrl', '')
-                    
+
                     if video_url:
                         card["status"] = "READY"
                         card["url"] = video_url
-                        
+
                         self.log.emit(f"[SUCCESS] Scene {scene} Copy {copy_num}: Video ready!")
-                        
+
                         # Update progress: Downloading
                         self.progress_updated.emit(
                             scene - 1,
                             total_scenes,
                             f"Downloading scene {scene} copy {copy_num}..."
                         )
-                        
+
                         # Download video
                         raw_fn = f"{title}_scene{scene}_copy{copy_num}.mp4"
                         fn = sanitize_filename(raw_fn)
                         fp = os.path.join(dir_videos, fn)
-                        
+
                         self.log.emit(f"[INFO] Downloading scene {scene} copy {copy_num}...")
-                        
+
                         try:
                             if self._download(video_url, fp):
                                 card["status"] = "DOWNLOADED"
                                 card["path"] = fp
-                                
+
                                 thumb = self._make_thumb(fp, thumbs_dir, scene, copy_num)
                                 card["thumb"] = thumb
-                                
+
                                 self.log.emit(f"[SUCCESS] ✓ Downloaded: {os.path.basename(fp)}")
-                                
+
                                 # Track completed video and emit signal
                                 if fp not in completed_videos:
                                     completed_videos.append(fp)
@@ -398,19 +398,19 @@ class VideoGenerationWorker(QThread):
                                 card["url"] = video_url
                                 card["error_reason"] = f"Download error: {str(e)[:50]}"
                                 self.job_card.emit(card)
-                        
+
                         self.job_card.emit(card)
                     else:
                         self.log.emit(f"[ERR] Scene {scene} Copy {copy_num}: No video URL in response")
                         card["status"] = "DONE_NO_URL"
                         card["error_reason"] = "No video URL in response"
                         self.job_card.emit(card)
-                
+
                 elif status == 'MEDIA_GENERATION_STATUS_FAILED':
                     # Extract error details
                     error_info = raw_response.get('operation', {}).get('error', {})
                     error_message = error_info.get('message', '')
-                    
+
                     # Categorize the error
                     if 'quota' in error_message.lower() or 'limit' in error_message.lower():
                         error_reason = "Vượt quota API"
@@ -422,20 +422,20 @@ class VideoGenerationWorker(QThread):
                         error_reason = error_message[:80]
                     else:
                         error_reason = "Video generation failed"
-                    
+
                     card["status"] = "FAILED"
                     card["error_reason"] = error_reason
                     self.log.emit(f"[ERR] Scene {scene} Copy {copy_num} FAILED: {error_reason}")
                     self.job_card.emit(card)
-                
+
                 else:
                     # Still processing
                     card["status"] = "PROCESSING"
                     self.job_card.emit(card)
                     new_jobs.append(job_info)
-            
+
             jobs = new_jobs
-            
+
             if jobs:
                 poll_info = f"vòng {poll_round + 1}/120"
                 if poll_round >= 100:
@@ -443,7 +443,7 @@ class VideoGenerationWorker(QThread):
                 else:
                     self.log.emit(f"[INFO] Đang chờ {len(jobs)} video ({poll_info})...")
                 time.sleep(5)
-        
+
         # Handle timeout
         if jobs:
             for job_info in jobs:
@@ -452,7 +452,7 @@ class VideoGenerationWorker(QThread):
                 card["error_reason"] = "Video generation timed out"
                 self.job_card.emit(card)
                 self.log.emit(f"[TIMEOUT] Scene {card['scene']} Copy {card['copy']}: Generation timed out")
-        
+
         # Emit completion signal
         self.all_completed.emit(completed_videos)
         self.log.emit(f"[INFO] Video generation completed: {len(completed_videos)} videos downloaded")
