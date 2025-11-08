@@ -163,54 +163,93 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 sections.append(voice_directive)
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 1: VISUAL STYLE ENFORCEMENT (STRENGTHENED!)
+    # SECTION 1: VISUAL STYLE LOCK (PR #8 - Enhanced style consistency)
     # ═══════════════════════════════════════════════════════════════
     constraints = prompt_data.get("constraints", {})
     visual_style_tags = constraints.get("visual_style_tags", [])
+    
+    # Extract style_seed from generation params (PR #8)
+    generation_params = prompt_data.get("generation", {})
+    style_seed = generation_params.get("style_seed")
 
     if visual_style_tags:
         style_text = ", ".join(visual_style_tags)
         style_lower = style_text.lower()
-
-        # Build STRONG style directive
-        style_directive = (
-            "═══════════════════════════════════════════════\n"
-            "MANDATORY VISUAL STYLE REQUIREMENT\n"
-            "═══════════════════════════════════════════════\n"
-        )
-
-        # Specific enforcement for anime style
+        
+        # Determine main style from tags
+        main_style = "2D Hand-Drawn Anime"  # Default
         if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
-            style_directive += (
-                "REQUIRED STYLE: 2D Hand-Drawn Anime Animation\n\n"
-                "MUST HAVE:\n"
-                "✓ Flat colors with cel-shading (NO realistic gradients)\n"
-                "✓ Bold black outlines around ALL characters and objects\n"
-                "✓ 2D cartoon/manga aesthetic throughout\n"
-                "✓ Hand-drawn animation style\n"
-                "✓ Anime character designs with expressive features\n\n"
-                "ABSOLUTELY FORBIDDEN:\n"
+            main_style = "2D Hand-Drawn Anime Animation"
+        elif "realistic" in style_lower:
+            main_style = "Photorealistic Live Action"
+        elif "cinematic" in style_lower:
+            main_style = "Cinematic Film Style"
+
+        # Build VISUAL STYLE LOCK section (similar to CHARACTER IDENTITY LOCK)
+        style_lock = (
+            "╔═══════════════════════════════════════════════════════════╗\n"
+            "║  VISUAL STYLE LOCK (CRITICAL PRIORITY)                   ║\n"
+            "║  THIS SECTION MUST NEVER BE IGNORED OR MODIFIED          ║\n"
+            "╚═══════════════════════════════════════════════════════════╝\n\n"
+            f"REQUIRED STYLE: {main_style}\n\n"
+            "THIS EXACT VISUAL STYLE FOR ALL SCENES:\n"
+        )
+        
+        # Add style-specific requirements
+        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
+            style_lock += (
+                "✓ 2D hand-drawn animation aesthetic\n"
+                "✓ Flat colors with cel-shading technique\n"
+                "✓ Bold black outlines (3-5px width around characters and objects)\n"
+                "✓ Cartoon/illustrated look, NOT photographic\n"
+                "✓ Traditional anime art style (like Japanese TV animation)\n"
+                "✓ Simplified backgrounds with painted look\n"
+                "✓ Expressive character designs with large eyes\n\n"
+                "FORBIDDEN VISUAL STYLES:\n"
                 "✗ Realistic photography or photorealistic rendering\n"
-                "✗ 3D CGI or computer-generated animation\n"
-                "✗ Disney/Pixar 3D style\n"
-                "✗ Live action footage or real people\n"
-                "✗ Photographic lighting or realistic textures\n"
-                "✗ Film photography aesthetic\n"
-                "✗ Cinematic realism or hyperrealistic styles\n"
+                "✗ 3D computer animation (CGI)\n"
+                "✗ Semi-realistic or hybrid styles\n"
+                "✗ Rotoscoping or live-action traced\n"
+                "✗ Western cartoon styles (Disney 3D, Pixar)\n"
+                "✗ Mixed 2D/3D elements\n"
+                "✗ Photographic lighting or textures\n"
             )
         elif "realistic" in style_lower or "cinematic" in style_lower:
-            # Only use realistic if NOT anime
-            style_directive += (
-                f"REQUIRED STYLE: {style_text.title()}\n\n"
-                f"Film-like quality with realistic textures, lighting, and motion.\n"
-                f"Photorealistic rendering with cinematic camera work.\n"
+            style_lock += (
+                "✓ Photorealistic rendering with natural textures\n"
+                "✓ Realistic lighting and shadows\n"
+                "✓ Real-world physics and proportions\n"
+                "✓ Detailed textures and materials\n"
+                "✓ Natural camera work\n\n"
+                "FORBIDDEN VISUAL STYLES:\n"
+                "✗ Anime or cartoon aesthetics\n"
+                "✗ 2D hand-drawn animation\n"
+                "✗ Flat colors or cel-shading\n"
+                "✗ Stylized or illustrated look\n"
+                "✗ Bold outlines or cartoon features\n"
             )
-        else:
-            # Generic style
-            style_directive += f"REQUIRED STYLE: {style_text.upper()}\n\n"
-
-        style_directive += "═══════════════════════════════════════════════"
-        sections.append(style_directive)
+        
+        style_lock += (
+            "\n🎨 STYLE CONSISTENCY RULES:\n"
+            "1. Use EXACTLY the same visual style in every single scene\n"
+            "2. NEVER mix realistic and anime styles\n"
+            "3. NEVER change rendering technique mid-story\n"
+            "4. NEVER switch between 2D and 3D\n"
+            "5. Maintain IDENTICAL art direction throughout\n"
+            "6. All scenes must look like they're from the SAME production\n\n"
+            "⚠️  Any style variation is STRICTLY FORBIDDEN.\n"
+        )
+        
+        # Add style seed if available
+        if style_seed:
+            style_lock += f"Use style seed: {style_seed} for visual consistency.\n"
+        
+        style_lock += (
+            "╔═══════════════════════════════════════════════════════════╗\n"
+            "║  END OF VISUAL STYLE LOCK                                ║\n"
+            "╚═══════════════════════════════════════════════════════════╝"
+        )
+        sections.append(style_lock)
 
     # ═══════════════════════════════════════════════════════════════
     # SECTION 2: CHARACTER CONSISTENCY
@@ -242,8 +281,8 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         sections.append(f"SETTING: {setting_details}")
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 5: SCENE ACTION (with character reminder - Issue #41)
-    # Triple Reinforcement #2: Prepend character reminder before action
+    # SECTION 5: SCENE ACTION (with character & style reminders)
+    # Triple Reinforcement #2: Prepend character and style reminders
     # ═══════════════════════════════════════════════════════════════
     key_action = prompt_data.get("key_action", "")
 
@@ -259,6 +298,15 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                         break
 
     if key_action:
+        # Add style reminder before scene action (Triple Reinforcement #2 - PR #8)
+        style_reminder = ""
+        if visual_style_tags:
+            style_text_lower = ", ".join(visual_style_tags).lower()
+            if "anime" in style_text_lower or "flat colors" in style_text_lower or "outlined" in style_text_lower:
+                style_reminder = "[2D anime style with bold outlines and flat colors] "
+            elif "realistic" in style_text_lower or "cinematic" in style_text_lower:
+                style_reminder = "[Photorealistic live-action style] "
+        
         # Add character reminder before scene action (Triple Reinforcement #2)
         character_reminder = ""
         if character_details:
@@ -277,7 +325,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                     " — Keep EXACT same appearance as defined in CHARACTER IDENTITY LOCK above.\n\n"
                 )
         
-        sections.append(f"SCENE ACTION:\n{character_reminder}{key_action}")
+        sections.append(f"SCENE ACTION:\n{style_reminder}{character_reminder}{key_action}")
 
     # ═══════════════════════════════════════════════════════════════
     # SECTION 6: CAMERA DIRECTION (existing, unchanged)
@@ -298,8 +346,8 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     # Its content (voice + style) is now at top as critical sections
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 7: NEGATIVES (Enhanced with character consistency - Issue #41)
-    # Triple Reinforcement #3: Add character consistency to negatives
+    # SECTION 7: NEGATIVES (Enhanced with character & style consistency)
+    # Triple Reinforcement #3: Add character and style consistency negatives
     # ═══════════════════════════════════════════════════════════════
     negatives = prompt_data.get("negatives", [])
     
@@ -314,6 +362,40 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         ]
         # Prepend to existing negatives for higher priority
         negatives = character_negatives + list(negatives)
+    
+    # Add style-specific negatives (PR #8 - Triple Reinforcement #3)
+    if visual_style_tags:
+        style_text_lower = ", ".join(visual_style_tags).lower()
+        style_negatives = []
+        
+        if "anime" in style_text_lower or "flat colors" in style_text_lower or "outlined" in style_text_lower:
+            style_negatives = [
+                "photorealistic rendering",
+                "realistic photography",
+                "3D CGI animation",
+                "semi-realistic style",
+                "live-action footage",
+                "rotoscoping",
+                "mixed 2D/3D",
+                "Disney 3D style",
+                "Pixar animation",
+                "realistic lighting and textures",
+                "photographic quality"
+            ]
+        elif "realistic" in style_text_lower or "cinematic" in style_text_lower:
+            style_negatives = [
+                "anime style",
+                "2D animation",
+                "cartoon aesthetic",
+                "cel-shading",
+                "bold outlines",
+                "flat colors",
+                "illustrated look",
+                "stylized rendering"
+            ]
+        
+        # Prepend style negatives for high priority
+        negatives = style_negatives + list(negatives)
     
     if negatives:
         neg_text = "\n".join(f"- {neg}" for neg in negatives)
