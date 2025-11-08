@@ -1489,7 +1489,8 @@ class Text2VideoPanelV5(QWidget):
                 )
                 scenes.append({
                     "prompt": json.dumps(j, ensure_ascii=False, indent=2),
-                    "aspect": ratio
+                    "aspect": ratio,
+                    "actual_scene_num": r + 1  # Include actual scene number for consistency
                 })
 
         model_display = self.cb_model.currentText()
@@ -1584,7 +1585,8 @@ class Text2VideoPanelV5(QWidget):
                 )
                 scenes.append({
                     "prompt": json.dumps(j, ensure_ascii=False, indent=2),
-                    "aspect": ratio
+                    "aspect": ratio,
+                    "actual_scene_num": r + 1  # Include actual scene number for consistency
                 })
 
         model_display = self.cb_model.currentText()
@@ -2676,9 +2678,11 @@ class Text2VideoPanelV5(QWidget):
             prompt_json_str = json.dumps(j, ensure_ascii=False, indent=2)
             self._append_log(f"[INFO] Prompt JSON size: {len(prompt_json_str)} chars")
 
+            # BUG FIX: Include actual_scene_num so VideoWorker uses correct scene number
             scenes = [{
                 "prompt": prompt_json_str,
-                "aspect": ratio
+                "aspect": ratio,
+                "actual_scene_num": scene_num  # CRITICAL: Pass actual scene number for retry
             }]
         else:
             self._append_log("[ERR] build_prompt_json not available")
