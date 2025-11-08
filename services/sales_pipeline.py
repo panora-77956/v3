@@ -50,7 +50,7 @@ def poll_and_download(client:LabsClient, jobs:List[Dict[str,Any]], out_dir:str, 
     done = []
     ops = [j["op"] for j in jobs]
     while ops:
-        rs = client.batch_check_operations(ops, None, DEFAULT_PROJECT_ID) or {}
+        rs = client.batch_check_operations(ops) or {}
         new_ops = []
         for j in jobs:
             info = rs.get(j["op"]) or {}

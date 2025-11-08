@@ -299,7 +299,7 @@ class VideoGenerationWorker(QThread):
 
             # Batch check with error handling
             try:
-                rs = client.batch_check_operations(names, metadata, project_id)
+                rs = client.batch_check_operations(names, metadata)
             except Exception as e:
                 self.log.emit(f"[WARN] Lỗi kiểm tra trạng thái (vòng {poll_round + 1}): {e}")
                 time.sleep(10)
