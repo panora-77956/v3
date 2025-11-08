@@ -130,7 +130,8 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         sections.append(identity_lock)
 
     # ═══════════════════════════════════════════════════════════════
-    # SECTION 0B: VOICEOVER LANGUAGE (TOP PRIORITY)
+    # SECTION 0B: VOICEOVER LANGUAGE (TOP PRIORITY - ENHANCED)
+    # Issue #2: Strengthen voiceover/dialogue instructions
     # ═══════════════════════════════════════════════════════════════
     audio = prompt_data.get("audio", {})
     if isinstance(audio, dict):
@@ -138,6 +139,10 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         if isinstance(voiceover, dict):
             vo_lang = voiceover.get("language", "")
             vo_text = voiceover.get("text", "")
+            tts_provider = voiceover.get("tts_provider", "")
+            voice_id = voiceover.get("voice_id", "")
+            voice_name = voiceover.get("voice_name", "")
+            speaking_style = voiceover.get("speaking_style", "")
 
             if vo_lang and vo_text:
                 # Map language codes to full names
@@ -149,16 +154,53 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 }
                 lang_name = lang_name_map.get(vo_lang, vo_lang.upper())
 
-                # CRITICAL: This MUST be at the very top
+                # CRITICAL: Enhanced voice directive with stronger instructions
                 voice_directive = (
-                    f"═══════════════════════════════════════════════\n"
-                    f"CRITICAL AUDIO REQUIREMENT (HIGHEST PRIORITY)\n"
-                    f"═══════════════════════════════════════════════\n"
-                    f"ALL voiceover and dialogue audio MUST be spoken in {lang_name} ({vo_lang}).\n"
-                    f"Do NOT use any other language for voice audio.\n"
-                    f"Text-to-speech MUST use {lang_name} ({vo_lang}) language model.\n"
-                    f"\nVoiceover text:\n\"{vo_text}\"\n"
-                    f"═══════════════════════════════════════════════"
+                    f"╔═══════════════════════════════════════════════════════════╗\n"
+                    f"║  CRITICAL AUDIO REQUIREMENT (ABSOLUTE TOP PRIORITY)      ║\n"
+                    f"║  THIS SECTION MUST NEVER BE IGNORED OR SKIPPED           ║\n"
+                    f"╚═══════════════════════════════════════════════════════════╝\n\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"VOICE & DIALOGUE REQUIREMENTS (10 CRITICAL RULES):\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"1. ALL spoken dialogue MUST be in {lang_name} ({vo_lang})\n"
+                    f"2. ALL voiceover narration MUST be in {lang_name} ({vo_lang})\n"
+                    f"3. NEVER use any language other than {lang_name} for voice\n"
+                    f"4. Text-to-speech engine MUST use {lang_name} ({vo_lang}) model\n"
+                    f"5. Character dialogue MUST be audible and clear\n"
+                    f"6. Voiceover MUST be synchronized with video timing\n"
+                    f"7. Audio levels MUST be balanced and professional\n"
+                    f"8. Background music MUST NOT overpower the voice\n"
+                    f"9. Voice tone and emotion MUST match the scene content\n"
+                    f"10. INCLUDE voiceover audio - do NOT create silent video\n\n"
+                    f"VOICE CONFIGURATION:\n"
+                    f"- Language: {lang_name} ({vo_lang})\n"
+                )
+                
+                if tts_provider:
+                    voice_directive += f"- TTS Provider: {tts_provider}\n"
+                if voice_id:
+                    voice_directive += f"- Voice ID: {voice_id}\n"
+                if voice_name:
+                    voice_directive += f"- Voice Name: {voice_name}\n"
+                if speaking_style:
+                    voice_directive += f"- Speaking Style: {speaking_style}\n"
+                
+                voice_directive += (
+                    f"\n📢 VOICEOVER TEXT (MUST BE SPOKEN IN {lang_name}):\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                    f"\"{vo_text}\"\n"
+                    f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"⚠️  AUDIO ENFORCEMENT:\n"
+                    f"✓ Generate voiceover audio with the EXACT text above\n"
+                    f"✓ Use {lang_name} ({vo_lang}) TTS engine ONLY\n"
+                    f"✓ Ensure voice is clear, natural, and emotionally appropriate\n"
+                    f"✓ Match voice prosody (rate, pitch, emotion) to scene context\n"
+                    f"✓ DO NOT create a silent video - audio is MANDATORY\n"
+                    f"✓ DO NOT use English or any other language for voiceover\n\n"
+                    f"╔═══════════════════════════════════════════════════════════╗\n"
+                    f"║  END OF CRITICAL AUDIO REQUIREMENT                       ║\n"
+                    f"╚═══════════════════════════════════════════════════════════╝"
                 )
                 sections.append(voice_directive)
 
@@ -178,73 +220,289 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         
         # Determine main style from tags
         main_style = "2D Hand-Drawn Anime"  # Default
-        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
+        is_anime_style = False
+        is_realistic_style = False
+        is_genre_style = False
+        genre_style_type = None
+        
+        # Check genre-specific styles first (more specific patterns)
+        if "sci-fi" in style_lower or "futuristic" in style_lower or "cyberpunk" in style_lower:
+            main_style = "Sci-Fi / Futuristic"
+            is_genre_style = True
+            genre_style_type = "sci_fi"
+        elif "horror" in style_lower or ("dark" in style_lower and "eerie" in style_lower):
+            main_style = "Horror / Dark Thriller"
+            is_genre_style = True
+            genre_style_type = "horror"
+        elif "fantasy" in style_lower or "magical" in style_lower or "mystical" in style_lower:
+            main_style = "Fantasy / Magical"
+            is_genre_style = True
+            genre_style_type = "fantasy"
+        elif "action" in style_lower or ("dynamic" in style_lower and "fast-paced" in style_lower):
+            main_style = "Action / High Energy"
+            is_genre_style = True
+            genre_style_type = "action"
+        elif "romance" in style_lower or ("dreamy" in style_lower and "soft lighting" in style_lower):
+            main_style = "Romance / Soft Aesthetic"
+            is_genre_style = True
+            genre_style_type = "romance"
+        elif "comedy" in style_lower or ("playful" in style_lower and "bright" in style_lower):
+            main_style = "Comedy / Playful"
+            is_genre_style = True
+            genre_style_type = "comedy"
+        elif "documentary" in style_lower or "educational" in style_lower:
+            main_style = "Documentary / Educational"
+            is_genre_style = True
+            genre_style_type = "documentary"
+        elif "film noir" in style_lower or ("black and white" in style_lower and "vintage" in style_lower):
+            main_style = "Film Noir / Vintage"
+            is_genre_style = True
+            genre_style_type = "film_noir"
+        # Then check anime styles
+        elif "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower or "2d animation" in style_lower or "cel-shading" in style_lower:
             main_style = "2D Hand-Drawn Anime Animation"
-        elif "realistic" in style_lower:
+            is_anime_style = True
+        # Finally check realistic styles (most generic)
+        elif "realistic" in style_lower or "photorealistic" in style_lower:
             main_style = "Photorealistic Live Action"
-        elif "cinematic" in style_lower:
+            is_realistic_style = True
+        elif "cinematic" in style_lower and "anime" not in style_lower:
             main_style = "Cinematic Film Style"
+            is_realistic_style = True
 
         # Build VISUAL STYLE LOCK section (similar to CHARACTER IDENTITY LOCK)
+        # Issue #1: Enhanced with stronger anime/visual style enforcement
         style_lock = (
             "╔═══════════════════════════════════════════════════════════╗\n"
-            "║  VISUAL STYLE LOCK (CRITICAL PRIORITY)                   ║\n"
+            "║  VISUAL STYLE LOCK (ABSOLUTE CRITICAL PRIORITY)          ║\n"
             "║  THIS SECTION MUST NEVER BE IGNORED OR MODIFIED          ║\n"
             "╚═══════════════════════════════════════════════════════════╝\n\n"
-            f"REQUIRED STYLE: {main_style}\n\n"
-            "THIS EXACT VISUAL STYLE FOR ALL SCENES:\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"REQUIRED VISUAL STYLE: {main_style}\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            "VISUAL STYLE REQUIREMENTS (12 CRITICAL RULES):\n"
         )
         
-        # Add style-specific requirements
-        if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
+        # Add style-specific requirements with enhanced enforcement
+        if is_anime_style:
             style_lock += (
-                "✓ 2D hand-drawn animation aesthetic\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "ANIME STYLE REQUIREMENTS:\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "1. MUST use 2D hand-drawn anime animation aesthetic (Japanese anime style)\n"
+                "2. MUST use flat colors with cel-shading technique (NO gradient shading)\n"
+                "3. MUST have bold black outlines around characters and objects (3-5px width)\n"
+                "4. MUST look like traditional Japanese TV anime (similar to Studio Ghibli, Demon Slayer, My Hero Academia)\n"
+                "5. MUST use simplified, painted-look backgrounds (NOT photographic)\n"
+                "6. MUST have expressive character designs with large, detailed eyes\n"
+                "7. MUST use vibrant, saturated anime color palette\n"
+                "8. MUST use cartoon/illustrated rendering (NO photorealistic elements)\n"
+                "9. MUST maintain consistent 2D aesthetic throughout entire video\n"
+                "10. Characters MUST be drawn/illustrated, NOT photographed or 3D modeled\n"
+                "11. Animation MUST use anime techniques (limited animation, keyframes, motion lines)\n"
+                "12. Overall look MUST be unmistakably anime - if it looks realistic, it's WRONG\n\n"
+                "✅ REQUIRED ANIME CHARACTERISTICS:\n"
+                "✓ 2D hand-drawn animation aesthetic (Japanese anime style)\n"
                 "✓ Flat colors with cel-shading technique\n"
-                "✓ Bold black outlines (3-5px width around characters and objects)\n"
-                "✓ Cartoon/illustrated look, NOT photographic\n"
-                "✓ Traditional anime art style (like Japanese TV animation)\n"
-                "✓ Simplified backgrounds with painted look\n"
-                "✓ Expressive character designs with large eyes\n\n"
-                "FORBIDDEN VISUAL STYLES:\n"
-                "✗ Realistic photography or photorealistic rendering\n"
-                "✗ 3D computer animation (CGI)\n"
-                "✗ Semi-realistic or hybrid styles\n"
-                "✗ Rotoscoping or live-action traced\n"
-                "✗ Western cartoon styles (Disney 3D, Pixar)\n"
-                "✗ Mixed 2D/3D elements\n"
-                "✗ Photographic lighting or textures\n"
+                "✓ Bold black outlines (3-5px width) around ALL characters and objects\n"
+                "✓ Cartoon/illustrated look, completely non-photographic\n"
+                "✓ Traditional anime art style (Japanese TV animation aesthetic)\n"
+                "✓ Simplified backgrounds with painted/illustrated look\n"
+                "✓ Expressive character designs with large, detailed eyes\n"
+                "✓ Anime-specific visual effects (motion lines, impact frames, speed lines)\n"
+                "✓ Vibrant, saturated anime color palette\n"
+                "✓ Limited animation techniques (holds, keyframes, smears)\n\n"
+                "❌ ABSOLUTELY FORBIDDEN (WILL CAUSE FAILURE):\n"
+                "✗ Realistic photography or photorealistic rendering of ANY kind\n"
+                "✗ 3D computer animation (CGI) or 3D modeling\n"
+                "✗ Semi-realistic, hybrid, or mixed styles\n"
+                "✗ Rotoscoping or live-action traced footage\n"
+                "✗ Western cartoon styles (Disney 3D, Pixar, DreamWorks)\n"
+                "✗ Mixed 2D/3D elements or hybrid rendering\n"
+                "✗ Photographic lighting, textures, or materials\n"
+                "✗ Realistic skin textures, hair rendering, or fabric simulation\n"
+                "✗ Ray-traced lighting or realistic shadows\n"
+                "✗ Motion capture or realistic human movement\n"
+                "✗ Live-action footage or real-world photography\n\n"
+                "🎨 ANIME STYLE ENFORCEMENT:\n"
+                "⚠️  If the output looks realistic, photographic, or 3D → REJECT IT\n"
+                "⚠️  If there are NO bold outlines → NOT anime style\n"
+                "⚠️  If colors are gradient-shaded instead of flat → NOT anime style\n"
+                "⚠️  If it looks like a real photo or live-action → COMPLETELY WRONG\n"
+                "⚠️  The style MUST be unmistakably Japanese 2D anime\n"
             )
-        elif "realistic" in style_lower or "cinematic" in style_lower:
+        elif is_realistic_style:
             style_lock += (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "REALISTIC/CINEMATIC STYLE REQUIREMENTS:\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "1. MUST use photorealistic rendering with natural textures\n"
+                "2. MUST have realistic lighting and shadows (NO flat cel-shading)\n"
+                "3. MUST follow real-world physics and proportions\n"
+                "4. MUST use detailed, photographic textures and materials\n"
+                "5. MUST look like live-action film or photography\n"
+                "6. MUST use natural camera work and cinematography\n"
+                "7. MUST have realistic human features and proportions\n"
+                "8. MUST use gradient shading and realistic color grading\n"
+                "9. NO cartoon or illustrated elements\n"
+                "10. NO bold outlines or anime aesthetics\n"
+                "11. NO flat colors or cel-shading\n"
+                "12. Overall look MUST be photographic/cinematic - if it looks like anime, it's WRONG\n\n"
+                "✅ REQUIRED REALISTIC CHARACTERISTICS:\n"
                 "✓ Photorealistic rendering with natural textures\n"
-                "✓ Realistic lighting and shadows\n"
+                "✓ Realistic lighting and shadows (ray-traced quality)\n"
                 "✓ Real-world physics and proportions\n"
-                "✓ Detailed textures and materials\n"
-                "✓ Natural camera work\n\n"
-                "FORBIDDEN VISUAL STYLES:\n"
-                "✗ Anime or cartoon aesthetics\n"
-                "✗ 2D hand-drawn animation\n"
-                "✗ Flat colors or cel-shading\n"
-                "✗ Stylized or illustrated look\n"
-                "✗ Bold outlines or cartoon features\n"
+                "✓ Detailed photographic textures and materials\n"
+                "✓ Natural camera work and professional cinematography\n"
+                "✓ Realistic human features, skin textures, hair\n"
+                "✓ Gradient shading and realistic color grading\n"
+                "✓ Cinematic depth of field and bokeh effects\n\n"
+                "❌ ABSOLUTELY FORBIDDEN (WILL CAUSE FAILURE):\n"
+                "✗ Anime or cartoon aesthetics of ANY kind\n"
+                "✗ 2D hand-drawn animation look\n"
+                "✗ Flat colors or cel-shading technique\n"
+                "✗ Bold outlines around characters or objects\n"
+                "✗ Stylized or illustrated rendering\n"
+                "✗ Cartoon character designs or exaggerated features\n"
+                "✗ Anime-style large eyes or simplified faces\n"
+                "✗ Painted or illustrated backgrounds\n\n"
             )
+        elif is_genre_style:
+            # Add genre-specific style requirements
+            style_lock += (
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"{main_style.upper()} STYLE REQUIREMENTS:\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            )
+            
+            if genre_style_type == "sci_fi":
+                style_lock += (
+                    "1. MUST have futuristic, sci-fi aesthetic throughout\n"
+                    "2. MUST use neon lighting, holographic effects, or tech elements\n"
+                    "3. MUST include futuristic technology, cyberpunk, or sci-fi elements\n"
+                    "4. MUST maintain consistent futuristic visual language\n"
+                    "5. Color palette: neon blues, purples, cyans, or high-tech colors\n"
+                    "6. Environment: futuristic cityscapes, space, or tech settings\n"
+                    "7. NO medieval, ancient, or rustic aesthetics\n"
+                    "8. NO natural or traditional elements unless integrated with tech\n\n"
+                )
+            elif genre_style_type == "horror":
+                style_lock += (
+                    "1. MUST have dark, eerie, suspenseful atmosphere throughout\n"
+                    "2. MUST use gothic, ominous, or horror visual elements\n"
+                    "3. MUST maintain consistent horror aesthetic and mood\n"
+                    "4. Lighting: dark, shadowy, dramatic contrasts\n"
+                    "5. Color palette: desaturated, dark tones, ominous colors\n"
+                    "6. Mood: tense, eerie, unsettling, suspenseful\n"
+                    "7. NO bright, cheerful, or colorful elements\n"
+                    "8. NO happy, comedy, or upbeat aesthetics\n\n"
+                )
+            elif genre_style_type == "fantasy":
+                style_lock += (
+                    "1. MUST have magical, enchanted, mystical aesthetic\n"
+                    "2. MUST use fantasy elements: magic, mythical creatures, enchantments\n"
+                    "3. MUST maintain consistent fantasy visual language\n"
+                    "4. Color palette: vibrant, ethereal, magical colors\n"
+                    "5. Environment: enchanted forests, magical realms, fantasy settings\n"
+                    "6. Atmosphere: mystical, otherworldly, fantastical\n"
+                    "7. NO realistic modern settings or technology\n"
+                    "8. NO scientific or technological aesthetics\n\n"
+                )
+            elif genre_style_type == "action":
+                style_lock += (
+                    "1. MUST have dynamic, high-energy aesthetic throughout\n"
+                    "2. MUST convey intense, fast-paced, explosive action\n"
+                    "3. MUST maintain consistent action-oriented visual language\n"
+                    "4. Motion: dynamic camera work, fast movements\n"
+                    "5. Energy: intense, high-impact, explosive visuals\n"
+                    "6. Composition: dynamic angles, motion blur, impact frames\n"
+                    "7. NO slow, static, or calm aesthetics\n"
+                    "8. NO peaceful or tranquil settings\n\n"
+                )
+            elif genre_style_type == "romance":
+                style_lock += (
+                    "1. MUST have soft, dreamy, romantic aesthetic throughout\n"
+                    "2. MUST use soft lighting, warm colors, gentle atmosphere\n"
+                    "3. MUST maintain consistent romantic visual language\n"
+                    "4. Lighting: soft, warm, golden hour, dreamy\n"
+                    "5. Color palette: warm tones, pastels, soft colors\n"
+                    "6. Mood: gentle, intimate, dreamy, romantic\n"
+                    "7. NO harsh lighting or dark atmospheres\n"
+                    "8. NO violent, aggressive, or intense aesthetics\n\n"
+                )
+            elif genre_style_type == "comedy":
+                style_lock += (
+                    "1. MUST have bright, playful, fun aesthetic throughout\n"
+                    "2. MUST use vibrant colors, exaggerated expressions, playful elements\n"
+                    "3. MUST maintain consistent comedy/playful visual language\n"
+                    "4. Lighting: bright, cheerful, well-lit\n"
+                    "5. Color palette: vibrant, saturated, fun colors\n"
+                    "6. Mood: playful, fun, lighthearted, energetic\n"
+                    "7. NO dark, serious, or dramatic atmospheres\n"
+                    "8. NO horror or intense emotional aesthetics\n\n"
+                )
+            elif genre_style_type == "documentary":
+                style_lock += (
+                    "1. MUST have realistic, clear, informative aesthetic\n"
+                    "2. MUST use natural lighting, educational presentation\n"
+                    "3. MUST maintain consistent documentary visual language\n"
+                    "4. Style: realistic, clear, professional, educational\n"
+                    "5. Lighting: natural, even, well-balanced\n"
+                    "6. Presentation: informative, clear, documentary-style\n"
+                    "7. NO stylized, artistic, or abstract elements\n"
+                    "8. NO fantasy or overly creative aesthetics\n\n"
+                )
+            elif genre_style_type == "film_noir":
+                style_lock += (
+                    "1. MUST have black and white or desaturated aesthetic\n"
+                    "2. MUST use dramatic shadows, high contrast, vintage 1940s look\n"
+                    "3. MUST maintain consistent film noir visual language\n"
+                    "4. Lighting: dramatic shadows, chiaroscuro, high contrast\n"
+                    "5. Color: black and white or heavily desaturated\n"
+                    "6. Atmosphere: vintage, 1940s aesthetic, noir mood\n"
+                    "7. NO colorful, bright, or modern aesthetics\n"
+                    "8. NO futuristic or contemporary styles\n\n"
+                )
+            
+            # Add genre-specific tags from visual_style_tags
+            style_lock += (
+                f"✅ REQUIRED CHARACTERISTICS FOR {main_style.upper()}:\n"
+            )
+            for tag in visual_style_tags:
+                style_lock += f"✓ {tag}\n"
+            style_lock += "\n"
         
         style_lock += (
-            "\n🎨 STYLE CONSISTENCY RULES:\n"
-            "1. Use EXACTLY the same visual style in every single scene\n"
-            "2. NEVER mix realistic and anime styles\n"
-            "3. NEVER change rendering technique mid-story\n"
-            "4. NEVER switch between 2D and 3D\n"
-            "5. Maintain IDENTICAL art direction throughout\n"
-            "6. All scenes must look like they're from the SAME production\n\n"
-            "⚠️  Any style variation is STRICTLY FORBIDDEN.\n"
+            "\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "STYLE CONSISTENCY ENFORCEMENT (CRITICAL):\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "1. Use EXACTLY the same visual style in EVERY SINGLE scene\n"
+            "2. NEVER mix realistic and anime styles - choose ONE and stick to it\n"
+            "3. NEVER change rendering technique between scenes\n"
+            "4. NEVER switch between 2D and 3D mid-video\n"
+            "5. Maintain IDENTICAL art direction from start to finish\n"
+            "6. All scenes MUST look like they're from the SAME production\n"
+            "7. Visual style MUST remain consistent across entire video\n"
+            "8. NO style variations, NO style drift, NO mixed approaches\n"
+            "9. First scene sets the style - ALL other scenes MUST match it\n"
+            "10. ANY style inconsistency is a CRITICAL FAILURE\n\n"
         )
         
         # Add style seed if available
         if style_seed:
-            style_lock += f"Use style seed: {style_seed} for visual consistency.\n"
+            style_lock += (
+                f"🎲 STYLE SEED FOR CONSISTENCY:\n"
+                f"Use style seed: {style_seed}\n"
+                f"This seed ensures visual style consistency across all scenes.\n"
+                f"DO NOT vary the visual style - the seed locks it in place.\n\n"
+            )
         
         style_lock += (
+            "⚠️  CRITICAL WARNINGS:\n"
+            "• Any deviation from the specified style is UNACCEPTABLE\n"
+            "• Style mixing or drift will result in REJECTED output\n"
+            "• Visual style is as important as content - enforce it strictly\n"
+            "• When in doubt, err on the side of STRONGER style enforcement\n\n"
             "╔═══════════════════════════════════════════════════════════╗\n"
             "║  END OF VISUAL STYLE LOCK                                ║\n"
             "╚═══════════════════════════════════════════════════════════╝"
