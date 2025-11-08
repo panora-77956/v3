@@ -16,34 +16,66 @@ import os
 import re
 
 from PyQt5.QtCore import QLocale, QSize, Qt, QThread, QUrl, pyqtSignal  # THÊM pyqtSignal
-from PyQt5.QtGui import QColor, QFont, QKeySequence, QIcon, QPixmap, QDesktopServices # THÊM QPixmap
+from PyQt5.QtGui import (  # THÊM QPixmap
+    QColor,
+    QDesktopServices,
+    QFont,
+    QIcon,
+    QKeySequence,
+    QPixmap,
+)
 from PyQt5.QtWidgets import (
-    QScrollArea, QCheckBox, QComboBox, QGroupBox, QHBoxLayout,
-    QLabel, QLineEdit, QListWidget, QListWidgetItem, QMessageBox,
-    QPushButton, QShortcut, QSlider, QSpinBox, QTableWidget,
-    QTableWidgetItem, QTextEdit, QVBoxLayout, QWidget, QTabWidget,
-    QFileDialog, QFrame, QApplication, QStackedWidget, QGridLayout,
-    QSizePolicy, QProgressBar  # Added QProgressBar
+    QApplication,
+    QCheckBox,
+    QComboBox,
+    QFileDialog,
+    QFrame,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QLineEdit,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QScrollArea,
+    QShortcut,
+    QSizePolicy,  # Added QProgressBar
+    QSlider,
+    QSpinBox,
+    QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
+    QTextEdit,
+    QVBoxLayout,
+    QWidget,
 )
 
 # Original imports
 try:
-    from utils import config as cfg
+    from services.domain_prompts import get_all_domains, get_topics_for_domain
+    from services.llm_story_service import generate_social_media, generate_thumbnail_design
     from services.voice_options import (
-        get_style_list, get_style_info, get_voices_for_provider,
-        SPEAKING_STYLES, TTS_PROVIDERS
-    )
-    from services.domain_prompts import (
-        get_all_domains, get_topics_for_domain, get_system_prompt
-    )
-    from services.llm_story_service import (
-        generate_social_media, generate_thumbnail_design
+        SPEAKING_STYLES,
+        TTS_PROVIDERS,
+        get_style_info,
+        get_style_list,
+        get_voices_for_provider,
     )
     from ui.text2video_panel_impl import (
-        _ASPECT_MAP, _LANGS, _VIDEO_MODELS, _Worker,
-        build_prompt_json, get_model_key_from_display, extract_location_context
+        _ASPECT_MAP,
+        _LANGS,
+        _Worker,
+        build_prompt_json,
+        extract_location_context,
+        get_model_key_from_display,
     )
     from ui.widgets.scene_result_card import SceneResultCard
+    from ui.workers.video_worker import VideoGenerationWorker  # PR#7: Background video worker
+    from utils import config as cfg
 except ImportError as e:
     print(f"⚠️ Import warning: {e}")
     cfg = None
@@ -51,6 +83,7 @@ except ImportError as e:
     _LANGS = [("Tiếng Việt", "vi"), ("English", "en")]
     _ASPECT_MAP = {"16:9": "VIDEO_ASPECT_RATIO_LANDSCAPE"}
     SceneResultCard = None
+    VideoGenerationWorker = None  # PR#7: Fallback for missing worker
 
 # V5 STYLING
 FONT_H2 = QFont("Segoe UI", 15, QFont.Bold)  # +2px, bold
@@ -269,7 +302,7 @@ class StoryboardView(QWidget):
                     }
                     QPushButton:hover { background: #F57C00; }
                 """)
-                
+
                 # FIX: Add logging and proper connection with error handling
                 def on_retry_click():
                     print(f"[DEBUG] Retry button clicked for scene {scene_num}")
@@ -277,8 +310,8 @@ class StoryboardView(QWidget):
                         self.main_panel._append_log(f"[INFO] 🔄 Retry button clicked for scene {scene_num}")
                         self.main_panel._retry_failed_scene(scene_num)
                     else:
-                        print(f"[ERROR] main_panel does not have _retry_failed_scene method!")
-                
+                        print("[ERROR] main_panel does not have _retry_failed_scene method!")
+
                 retry_btn.clicked.connect(on_retry_click)
                 card_layout.addWidget(retry_btn)
 
@@ -410,17 +443,17 @@ class Text2VideoPanelV5(QWidget):
         row1.addWidget(lbl)
         self.cb_style = QComboBox()
         self.cb_style.setMinimumHeight(32)
-        
+
         # Group 1: Animation Styles
         self.cb_style.addItem("━━━ ANIMATION ━━━", "separator_1")
         self.cb_style.addItem("  Anime 2D (Phẳng, viền đậm)", "anime_2d")
         self.cb_style.addItem("  Anime Cinematic (Anime + Điện ảnh)", "anime_cinematic")
-        
+
         # Group 2: Realistic Styles
         self.cb_style.addItem("━━━ REALISTIC ━━━", "separator_2")
         self.cb_style.addItem("  Realistic (Chân thực)", "realistic")
         self.cb_style.addItem("  Cinematic (Điện ảnh)", "cinematic")
-        
+
         # Group 3: Genre Styles
         self.cb_style.addItem("━━━ GENRE ━━━", "separator_3")
         self.cb_style.addItem("  Sci-fi (Khoa học viễn tưởng)", "sci_fi")
@@ -429,15 +462,15 @@ class Text2VideoPanelV5(QWidget):
         self.cb_style.addItem("  Action (Hành động)", "action")
         self.cb_style.addItem("  Romance (Lãng mạn)", "romance")
         self.cb_style.addItem("  Comedy (Hài hước)", "comedy")
-        
+
         # Group 4: Special Styles
         self.cb_style.addItem("━━━ SPECIAL ━━━", "separator_4")
         self.cb_style.addItem("  Documentary (Phim tài liệu)", "documentary")
         self.cb_style.addItem("  Film Noir (Đen trắng cổ điển)", "film_noir")
-        
+
         # Set default to Anime 2D (index 1, after first separator)
         self.cb_style.setCurrentIndex(1)
-        
+
         # Disable separator items so they can't be selected
         for i in range(self.cb_style.count()):
             item_data = self.cb_style.itemData(i)
@@ -449,7 +482,7 @@ class Text2VideoPanelV5(QWidget):
                 # Style separator items differently
                 item.setBackground(QColor("#2a2a2a"))
                 item.setForeground(QColor("#888888"))
-        
+
         row1.addWidget(self.cb_style, 1)
 
         row1.addSpacing(12)
@@ -699,7 +732,32 @@ class Text2VideoPanelV5(QWidget):
         """)
         colL.addWidget(self.btn_clear_project)
 
-        # PROGRESS BAR - NEW
+        # PROGRESS UI - PR#7: Progress label, bar and cancel button
+        progress_layout = QHBoxLayout()
+
+        self.progress_label = QLabel("Ready")
+        self.progress_label.setFont(QFont("Segoe UI", 12))
+        self.progress_label.setVisible(False)
+        progress_layout.addWidget(self.progress_label)
+
+        self.cancel_video_button = QPushButton("⏹ Cancel")
+        self.cancel_video_button.setMaximumWidth(100)
+        self.cancel_video_button.setMinimumHeight(32)
+        self.cancel_video_button.setVisible(False)
+        self.cancel_video_button.setStyleSheet("""
+            QPushButton {
+                background: #E0E0E0;
+                color: #616161;
+                border: none;
+                border-radius: 16px;
+                font-weight: 700;
+                font-size: 12px;
+            }
+            QPushButton:hover { background: #BDBDBD; }
+        """)
+        progress_layout.addWidget(self.cancel_video_button)
+        colL.addLayout(progress_layout)
+
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
@@ -891,7 +949,7 @@ class Text2VideoPanelV5(QWidget):
         self.storyboard_view = StoryboardView(self)
         self.storyboard_view.scene_clicked.connect(self._show_prompt_detail)
         self.view_stack.addWidget(self.storyboard_view)
-        
+
         # Set storyboard as default view
         self.view_stack.setCurrentIndex(1)  # Storyboard is at index 1
         self.btn_view_storyboard.setChecked(True)  # Mark storyboard button as checked
@@ -974,6 +1032,7 @@ class Text2VideoPanelV5(QWidget):
         self.btn_generate_bible.clicked.connect(self._on_generate_bible)
         self.btn_clear_project.clicked.connect(self._clear_current_project)
         self.btn_change_folder.clicked.connect(self._on_change_folder)
+        self.cancel_video_button.clicked.connect(self._on_cancel_video_generation)  # PR#7: Cancel button
 
         self.table.cellDoubleClicked.connect(self._open_prompt_view)
         self.cards.itemDoubleClicked.connect(self._open_card_prompt)
@@ -1046,7 +1105,7 @@ class Text2VideoPanelV5(QWidget):
 
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
-        
+
         # Hide progress bar when stopped
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
@@ -1060,7 +1119,7 @@ class Text2VideoPanelV5(QWidget):
 
         self.btn_auto.setEnabled(False)
         self.btn_stop.setEnabled(True)
-        
+
         # Show and reset progress bar
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -1116,7 +1175,7 @@ class Text2VideoPanelV5(QWidget):
         self.worker.job_finished.connect(self._on_worker_finished_cleanup)
 
         self.thread.start()
-    
+
     def _on_progress_update(self, message, percent):
         """Update progress bar with current progress"""
         self.progress_bar.setValue(percent)
@@ -1127,7 +1186,7 @@ class Text2VideoPanelV5(QWidget):
         self._append_log("[INFO] Worker hoàn tất.")
         self.btn_auto.setEnabled(True)
         self.btn_stop.setEnabled(False)
-        
+
         # Hide progress bar when done
         self.progress_bar.setVisible(False)
         self.progress_bar.setValue(0)
@@ -1144,15 +1203,15 @@ class Text2VideoPanelV5(QWidget):
         """Handle script generation completion"""
         self._ctx = ctx
         self._title = (
-            self.ed_project.text().strip() or 
-            data.get("title_vi") or 
-            data.get("title_tgt") or 
+            self.ed_project.text().strip() or
+            data.get("title_vi") or
+            data.get("title_tgt") or
             ctx.get("title")
         )
-        
+
         # ISSUE #3 FIX: Display warning if generated script doesn't match idea
         warnings_to_show = []
-        
+
         if data.get("idea_relevance_warning"):
             warning_msg = data.get("idea_relevance_warning")
             relevance_score = data.get("idea_relevance_score", 0.0)
@@ -1163,7 +1222,7 @@ class Text2VideoPanelV5(QWidget):
                 f"2. Chọn Domain/Topic phù hợp để cải thiện context\n"
                 f"3. Chỉnh sửa kịch bản trong tab 'Chi tiết kịch bản'\n"
             )
-        
+
         if data.get("dialogue_language_warning"):
             warnings_to_show.append(
                 f"⚠️ LỜI THOẠI KHÔNG ĐÚNG NGÔN NGỮ:\n{data.get('dialogue_language_warning')}\n\n"
@@ -1171,7 +1230,7 @@ class Text2VideoPanelV5(QWidget):
                 f"1. Tạo lại kịch bản với cùng ngôn ngữ đích\n"
                 f"2. Kiểm tra và chỉnh sửa các lời thoại trong tab 'Prompts'\n"
             )
-        
+
         # Display all warnings in a single dialog
         if warnings_to_show:
             QMessageBox.warning(
@@ -1181,7 +1240,7 @@ class Text2VideoPanelV5(QWidget):
                 WARNING_SEPARATOR +
                 "Bạn có thể tiếp tục sử dụng kịch bản này hoặc tạo lại."
             )
-        
+
         # Display Bible + Outline + Screenplay
         parts = []
         cb = data.get("character_bible") or []
@@ -1293,7 +1352,7 @@ class Text2VideoPanelV5(QWidget):
 
                     # Part G: Extract dialogues from scene data for voiceover
                     dialogues = sc.get("dialogues", [])
-                    
+
                     # Issue #33: Get base_seed from context for style consistency
                     base_seed = ctx.get("base_seed") or data.get("base_seed")
 
@@ -1339,7 +1398,7 @@ class Text2VideoPanelV5(QWidget):
 
         # Populate storyboard view with scenes immediately
         self._refresh_storyboard()
-        
+
         # Switch to "Kết quả cảnh" tab to show results
         self.result_tabs.setCurrentIndex(2)  # Tab index 2 = "🎬 Kết quả cảnh"
 
@@ -1351,12 +1410,18 @@ class Text2VideoPanelV5(QWidget):
             self.btn_auto.setEnabled(True)
 
     def _on_create_video_clicked(self):
-        """Create videos from script"""
+        """Create videos from script - PR#7: Using background worker to prevent UI freeze"""
         if self.table.rowCount() <= 0:
             QMessageBox.information(
                 self, "Chưa có kịch bản",
                 "Hãy tạo kịch bản trước."
             )
+            return
+
+        # Check if VideoGenerationWorker is available
+        if not VideoGenerationWorker:
+            self._append_log("[WARN] VideoGenerationWorker not available, using fallback method")
+            self._on_create_video_clicked_fallback()
             return
 
         lang_code = self.cb_out_lang.currentData()
@@ -1394,7 +1459,7 @@ class Text2VideoPanelV5(QWidget):
                 domain = self.cb_domain.currentData() or None
                 topic = self.cb_topic.currentData() or None
                 quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
-                
+
                 # Issue #33: Get base_seed from script data for style consistency
                 base_seed = self._script_data.get("base_seed") if self._script_data else None
 
@@ -1448,7 +1513,178 @@ class Text2VideoPanelV5(QWidget):
                 os.makedirs(payload["dir_videos"], exist_ok=True)
 
         self._append_log("[INFO] Bắt đầu tạo video...")
+
+        # PR#7: Use background worker instead of blocking thread
+        self._start_video_generation_worker(payload)
+
+    def _on_create_video_clicked_fallback(self):
+        """Fallback to old method if VideoGenerationWorker is not available"""
+        # ... existing implementation using _run_in_thread ...
+        # This is the original logic for backwards compatibility
+        if self.table.rowCount() <= 0:
+            return
+
+        lang_code = self.cb_out_lang.currentData()
+        ratio_key = self.cb_ratio.currentText()
+        ratio = _ASPECT_MAP.get(ratio_key, "VIDEO_ASPECT_RATIO_LANDSCAPE")
+        style = self.cb_style.currentData() or "anime_2d"
+        scenes = []
+
+        character_bible_basic = (
+            self._script_data.get("character_bible", [])
+            if self._script_data else []
+        )
+        voice_settings = self.get_voice_settings()
+
+        for r in range(self.table.rowCount()):
+            vi = self.table.item(r, 1).text() if self.table.item(r, 1) else ""
+            tgt = self.table.item(r, 2).text() if self.table.item(r, 2) else vi
+
+            location_ctx = None
+            dialogues = []
+            if self._script_data and "scenes" in self._script_data:
+                scene_list = self._script_data["scenes"]
+                if r < len(scene_list):
+                    if extract_location_context:
+                        location_ctx = extract_location_context(scene_list[r])
+                    dialogues = scene_list[r].get("dialogues", [])
+
+            if build_prompt_json:
+                tts_provider = self.cb_tts_provider.currentData()
+                voice_id = self.ed_custom_voice.text().strip() or self.cb_voice.currentData()
+                voice_name = self.cb_voice.currentText() if not self.ed_custom_voice.text().strip() else ""
+                domain = self.cb_domain.currentData() or None
+                topic = self.cb_topic.currentData() or None
+                quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+                base_seed = self._script_data.get("base_seed") if self._script_data else None
+
+                j = build_prompt_json(
+                    r + 1, vi, tgt, lang_code, ratio_key, style,
+                    character_bible=character_bible_basic,
+                    enhanced_bible=self._character_bible,
+                    voice_settings=voice_settings,
+                    location_context=location_ctx,
+                    tts_provider=tts_provider,
+                    voice_id=voice_id,
+                    voice_name=voice_name,
+                    domain=domain,
+                    topic=topic,
+                    quality=quality_text,
+                    dialogues=dialogues,
+                    base_seed=base_seed
+                )
+                scenes.append({
+                    "prompt": json.dumps(j, ensure_ascii=False, indent=2),
+                    "aspect": ratio
+                })
+
+        model_display = self.cb_model.currentText()
+        model_key = get_model_key_from_display(model_display) if get_model_key_from_display else model_display
+
+        payload = dict(
+            scenes=scenes,
+            copies=self._t2v_get_copies(),
+            model_key=model_key,
+            title=self._title,
+            dir_videos=self._ctx.get("dir_videos", ""),
+            upscale_4k=self.cb_upscale.isChecked(),
+            auto_download=self.cb_auto_download.isChecked(),
+            quality=self.cb_quality.currentText()
+        )
+
+        if not payload["dir_videos"]:
+            if cfg:
+                st = cfg.load()
+                root = st.get("download_dir") or ""
+                if not root:
+                    return
+                prj = os.path.join(root, self._title or "Project")
+                os.makedirs(prj, exist_ok=True)
+                payload["dir_videos"] = os.path.join(prj, "03_Videos")
+                os.makedirs(payload["dir_videos"], exist_ok=True)
+
+        self._append_log("[INFO] Bắt đầu tạo video...")
         self._run_in_thread("video", payload)
+
+    def _start_video_generation_worker(self, payload):
+        """PR#7: Start video generation in background worker to prevent UI freeze"""
+        # Show progress UI
+        self.progress_label.setVisible(True)
+        self.progress_label.setText("Initializing video generation...")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.cancel_video_button.setVisible(True)
+
+        # Disable generate button while processing
+        self.btn_auto.setEnabled(False)
+
+        # Create and configure worker
+        self.video_worker = VideoGenerationWorker(payload)
+
+        # Connect signals
+        self.video_worker.progress_updated.connect(self._on_video_progress_update)
+        self.video_worker.scene_completed.connect(self._on_video_scene_complete)
+        self.video_worker.all_completed.connect(self._on_video_all_complete)
+        self.video_worker.error_occurred.connect(self._on_video_error)
+        self.video_worker.job_card.connect(self._on_job_card)
+        self.video_worker.log.connect(self._append_log)
+
+        # Start worker
+        self.video_worker.start()
+        self._append_log("[INFO] Video generation started in background thread")
+
+    def _on_video_progress_update(self, scene_idx, total_scenes, status):
+        """PR#7: Handle progress updates from video worker"""
+        self.progress_label.setText(f"Scene {scene_idx + 1}/{total_scenes}: {status}")
+        if total_scenes > 0:
+            progress_percent = int((scene_idx / total_scenes) * 100)
+            self.progress_bar.setValue(progress_percent)
+
+    def _on_video_scene_complete(self, scene_idx, video_path):
+        """PR#7: Handle individual scene completion"""
+        self._append_log(f"[SUCCESS] ✓ Scene {scene_idx} completed: {os.path.basename(video_path)}")
+        # UI is updated incrementally via job_card signals
+
+    def _on_video_all_complete(self, video_paths):
+        """PR#7: Handle all scenes completion"""
+        self.progress_label.setText(f"✅ All scenes completed! ({len(video_paths)} videos)")
+        self.progress_bar.setValue(100)
+        self.progress_bar.setVisible(False)
+        self.cancel_video_button.setVisible(False)
+        self.progress_label.setVisible(False)
+
+        # Re-enable generate button
+        self.btn_auto.setEnabled(True)
+
+        # Clean up worker
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self.video_worker.deleteLater()
+            self.video_worker = None
+
+        self._append_log(f"[INFO] ✅ Video generation complete: {len(video_paths)} videos generated")
+
+    def _on_video_error(self, error_msg):
+        """PR#7: Handle video generation errors"""
+        self.progress_label.setText(f"❌ Error: {error_msg}")
+        self.progress_bar.setVisible(False)
+        self.cancel_video_button.setVisible(False)
+
+        # Re-enable generate button
+        self.btn_auto.setEnabled(True)
+
+        # Clean up worker
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self.video_worker.deleteLater()
+            self.video_worker = None
+
+        self._append_log(f"[ERROR] Video generation failed: {error_msg}")
+
+    def _on_cancel_video_generation(self):
+        """PR#7: Cancel ongoing video generation"""
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self._append_log("[INFO] Cancelling video generation...")
+            self.progress_label.setText("Cancelling...")
+            self.video_worker.cancel()
 
     def _render_card_text(self, scene:int):
         """Render card text with plain text formatting - BUG FIX #3: Show failed count"""
@@ -1474,9 +1710,9 @@ class Text2VideoPanelV5(QWidget):
             lines.append('')
 
             # Count statuses
-            failed = sum(1 for info in vids.values() 
+            failed = sum(1 for info in vids.values()
                         if info.get('status') in ('FAILED', 'ERROR', 'FAILED_START', 'DONE_NO_URL', 'DOWNLOAD_FAILED'))
-            completed = sum(1 for info in vids.values() 
+            completed = sum(1 for info in vids.values()
                            if info.get('status') in ('DOWNLOADED', 'COMPLETED', 'UPSCALED_4K'))
 
             # Status summary
@@ -1498,7 +1734,7 @@ class Text2VideoPanelV5(QWidget):
             # BUG FIX #3: Show retry hint
             if failed > 0:
                 lines.append('')
-                lines.append(f'💡 Double-click or use Storyboard view to retry')
+                lines.append('💡 Double-click or use Storyboard view to retry')
 
         return '\n'.join(lines)
 
@@ -1611,7 +1847,7 @@ class Text2VideoPanelV5(QWidget):
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
             quality = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
-            
+
             # Issue #33: Get base_seed from script data for style consistency
             base_seed = self._script_data.get("base_seed") if self._script_data else None
 
@@ -1781,7 +2017,7 @@ class Text2VideoPanelV5(QWidget):
                 "💼 VERSION 2: PROFESSIONAL",
                 "😂 VERSION 3: FUNNY/ENGAGING"
             ]
-            versions = [(version_titles[i] if i < len(version_titles) else f"📱 VERSION {i+1}", v) 
+            versions = [(version_titles[i] if i < len(version_titles) else f"📱 VERSION {i+1}", v)
                        for i, v in enumerate(versions)]
 
         # Build GroupBox for each version
@@ -2273,7 +2509,7 @@ class Text2VideoPanelV5(QWidget):
             domain = self.cb_domain.currentData() or None
             topic = self.cb_topic.currentData() or None
             quality = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
-            
+
             # Issue #33: Get base_seed from script data for style consistency
             base_seed = self._script_data.get("base_seed") if self._script_data else None
 
@@ -2301,14 +2537,14 @@ class Text2VideoPanelV5(QWidget):
                 )
                 dlg.exec_()
             except ImportError:
-                self._append_log("[WARN] PromptViewer not available")    
+                self._append_log("[WARN] PromptViewer not available")
     def _retry_failed_scene(self, scene_num):
         """BUG FIX #3: Retry failed videos for a specific scene"""
         # ADD: Log function call
-        self._append_log(f"[INFO] ═══════════════════════════════════════")
+        self._append_log("[INFO] ═══════════════════════════════════════")
         self._append_log(f"[INFO] 🔄 RETRY REQUESTED for Scene {scene_num}")
-        self._append_log(f"[INFO] ═══════════════════════════════════════")
-        
+        self._append_log("[INFO] ═══════════════════════════════════════")
+
         if scene_num < 1 or scene_num > self.table.rowCount():
             self._append_log(f"[ERR] Invalid scene number: {scene_num}")
             return
@@ -2317,7 +2553,7 @@ class Text2VideoPanelV5(QWidget):
         vids = st.get('videos', {})
 
         # Count failed videos
-        failed_copies = [copy_num for copy_num, info in vids.items() 
+        failed_copies = [copy_num for copy_num, info in vids.items()
                         if info.get('status') in ('FAILED', 'ERROR', 'FAILED_START', 'DONE_NO_URL', 'DOWNLOAD_FAILED')]
 
         # ADD: Log what was found
