@@ -44,6 +44,7 @@ try:
         build_prompt_json, get_model_key_from_display, extract_location_context
     )
     from ui.widgets.scene_result_card import SceneResultCard
+    from ui.workers.video_worker import VideoGenerationWorker  # PR#7: Background video worker
 except ImportError as e:
     print(f"⚠️ Import warning: {e}")
     cfg = None
@@ -51,6 +52,7 @@ except ImportError as e:
     _LANGS = [("Tiếng Việt", "vi"), ("English", "en")]
     _ASPECT_MAP = {"16:9": "VIDEO_ASPECT_RATIO_LANDSCAPE"}
     SceneResultCard = None
+    VideoGenerationWorker = None  # PR#7: Fallback for missing worker
 
 # V5 STYLING
 FONT_H2 = QFont("Segoe UI", 15, QFont.Bold)  # +2px, bold
@@ -699,7 +701,32 @@ class Text2VideoPanelV5(QWidget):
         """)
         colL.addWidget(self.btn_clear_project)
 
-        # PROGRESS BAR - NEW
+        # PROGRESS UI - PR#7: Progress label, bar and cancel button
+        progress_layout = QHBoxLayout()
+        
+        self.progress_label = QLabel("Ready")
+        self.progress_label.setFont(QFont("Segoe UI", 12))
+        self.progress_label.setVisible(False)
+        progress_layout.addWidget(self.progress_label)
+        
+        self.cancel_video_button = QPushButton("⏹ Cancel")
+        self.cancel_video_button.setMaximumWidth(100)
+        self.cancel_video_button.setMinimumHeight(32)
+        self.cancel_video_button.setVisible(False)
+        self.cancel_video_button.setStyleSheet("""
+            QPushButton {
+                background: #E0E0E0;
+                color: #616161;
+                border: none;
+                border-radius: 16px;
+                font-weight: 700;
+                font-size: 12px;
+            }
+            QPushButton:hover { background: #BDBDBD; }
+        """)
+        progress_layout.addWidget(self.cancel_video_button)
+        colL.addLayout(progress_layout)
+        
         self.progress_bar = QProgressBar()
         self.progress_bar.setMinimum(0)
         self.progress_bar.setMaximum(100)
@@ -974,6 +1001,7 @@ class Text2VideoPanelV5(QWidget):
         self.btn_generate_bible.clicked.connect(self._on_generate_bible)
         self.btn_clear_project.clicked.connect(self._clear_current_project)
         self.btn_change_folder.clicked.connect(self._on_change_folder)
+        self.cancel_video_button.clicked.connect(self._on_cancel_video_generation)  # PR#7: Cancel button
 
         self.table.cellDoubleClicked.connect(self._open_prompt_view)
         self.cards.itemDoubleClicked.connect(self._open_card_prompt)
@@ -1351,12 +1379,18 @@ class Text2VideoPanelV5(QWidget):
             self.btn_auto.setEnabled(True)
 
     def _on_create_video_clicked(self):
-        """Create videos from script"""
+        """Create videos from script - PR#7: Using background worker to prevent UI freeze"""
         if self.table.rowCount() <= 0:
             QMessageBox.information(
                 self, "Chưa có kịch bản",
                 "Hãy tạo kịch bản trước."
             )
+            return
+
+        # Check if VideoGenerationWorker is available
+        if not VideoGenerationWorker:
+            self._append_log("[WARN] VideoGenerationWorker not available, using fallback method")
+            self._on_create_video_clicked_fallback()
             return
 
         lang_code = self.cb_out_lang.currentData()
@@ -1448,7 +1482,178 @@ class Text2VideoPanelV5(QWidget):
                 os.makedirs(payload["dir_videos"], exist_ok=True)
 
         self._append_log("[INFO] Bắt đầu tạo video...")
+        
+        # PR#7: Use background worker instead of blocking thread
+        self._start_video_generation_worker(payload)
+    
+    def _on_create_video_clicked_fallback(self):
+        """Fallback to old method if VideoGenerationWorker is not available"""
+        # ... existing implementation using _run_in_thread ...
+        # This is the original logic for backwards compatibility
+        if self.table.rowCount() <= 0:
+            return
+
+        lang_code = self.cb_out_lang.currentData()
+        ratio_key = self.cb_ratio.currentText()
+        ratio = _ASPECT_MAP.get(ratio_key, "VIDEO_ASPECT_RATIO_LANDSCAPE")
+        style = self.cb_style.currentData() or "anime_2d"
+        scenes = []
+
+        character_bible_basic = (
+            self._script_data.get("character_bible", [])
+            if self._script_data else []
+        )
+        voice_settings = self.get_voice_settings()
+
+        for r in range(self.table.rowCount()):
+            vi = self.table.item(r, 1).text() if self.table.item(r, 1) else ""
+            tgt = self.table.item(r, 2).text() if self.table.item(r, 2) else vi
+
+            location_ctx = None
+            dialogues = []
+            if self._script_data and "scenes" in self._script_data:
+                scene_list = self._script_data["scenes"]
+                if r < len(scene_list):
+                    if extract_location_context:
+                        location_ctx = extract_location_context(scene_list[r])
+                    dialogues = scene_list[r].get("dialogues", [])
+
+            if build_prompt_json:
+                tts_provider = self.cb_tts_provider.currentData()
+                voice_id = self.ed_custom_voice.text().strip() or self.cb_voice.currentData()
+                voice_name = self.cb_voice.currentText() if not self.ed_custom_voice.text().strip() else ""
+                domain = self.cb_domain.currentData() or None
+                topic = self.cb_topic.currentData() or None
+                quality_text = self.cb_quality.currentText() if self.cb_quality.isVisible() else None
+                base_seed = self._script_data.get("base_seed") if self._script_data else None
+
+                j = build_prompt_json(
+                    r + 1, vi, tgt, lang_code, ratio_key, style,
+                    character_bible=character_bible_basic,
+                    enhanced_bible=self._character_bible,
+                    voice_settings=voice_settings,
+                    location_context=location_ctx,
+                    tts_provider=tts_provider,
+                    voice_id=voice_id,
+                    voice_name=voice_name,
+                    domain=domain,
+                    topic=topic,
+                    quality=quality_text,
+                    dialogues=dialogues,
+                    base_seed=base_seed
+                )
+                scenes.append({
+                    "prompt": json.dumps(j, ensure_ascii=False, indent=2),
+                    "aspect": ratio
+                })
+
+        model_display = self.cb_model.currentText()
+        model_key = get_model_key_from_display(model_display) if get_model_key_from_display else model_display
+
+        payload = dict(
+            scenes=scenes,
+            copies=self._t2v_get_copies(),
+            model_key=model_key,
+            title=self._title,
+            dir_videos=self._ctx.get("dir_videos", ""),
+            upscale_4k=self.cb_upscale.isChecked(),
+            auto_download=self.cb_auto_download.isChecked(),
+            quality=self.cb_quality.currentText()
+        )
+
+        if not payload["dir_videos"]:
+            if cfg:
+                st = cfg.load()
+                root = st.get("download_dir") or ""
+                if not root:
+                    return
+                prj = os.path.join(root, self._title or "Project")
+                os.makedirs(prj, exist_ok=True)
+                payload["dir_videos"] = os.path.join(prj, "03_Videos")
+                os.makedirs(payload["dir_videos"], exist_ok=True)
+
+        self._append_log("[INFO] Bắt đầu tạo video...")
         self._run_in_thread("video", payload)
+    
+    def _start_video_generation_worker(self, payload):
+        """PR#7: Start video generation in background worker to prevent UI freeze"""
+        # Show progress UI
+        self.progress_label.setVisible(True)
+        self.progress_label.setText("Initializing video generation...")
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setValue(0)
+        self.cancel_video_button.setVisible(True)
+        
+        # Disable generate button while processing
+        self.btn_auto.setEnabled(False)
+        
+        # Create and configure worker
+        self.video_worker = VideoGenerationWorker(payload)
+        
+        # Connect signals
+        self.video_worker.progress_updated.connect(self._on_video_progress_update)
+        self.video_worker.scene_completed.connect(self._on_video_scene_complete)
+        self.video_worker.all_completed.connect(self._on_video_all_complete)
+        self.video_worker.error_occurred.connect(self._on_video_error)
+        self.video_worker.job_card.connect(self._on_job_card)
+        self.video_worker.log.connect(self._append_log)
+        
+        # Start worker
+        self.video_worker.start()
+        self._append_log("[INFO] Video generation started in background thread")
+    
+    def _on_video_progress_update(self, scene_idx, total_scenes, status):
+        """PR#7: Handle progress updates from video worker"""
+        self.progress_label.setText(f"Scene {scene_idx + 1}/{total_scenes}: {status}")
+        if total_scenes > 0:
+            progress_percent = int((scene_idx / total_scenes) * 100)
+            self.progress_bar.setValue(progress_percent)
+    
+    def _on_video_scene_complete(self, scene_idx, video_path):
+        """PR#7: Handle individual scene completion"""
+        self._append_log(f"[SUCCESS] ✓ Scene {scene_idx} completed: {os.path.basename(video_path)}")
+        # UI is updated incrementally via job_card signals
+    
+    def _on_video_all_complete(self, video_paths):
+        """PR#7: Handle all scenes completion"""
+        self.progress_label.setText(f"✅ All scenes completed! ({len(video_paths)} videos)")
+        self.progress_bar.setValue(100)
+        self.progress_bar.setVisible(False)
+        self.cancel_video_button.setVisible(False)
+        self.progress_label.setVisible(False)
+        
+        # Re-enable generate button
+        self.btn_auto.setEnabled(True)
+        
+        # Clean up worker
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self.video_worker.deleteLater()
+            self.video_worker = None
+        
+        self._append_log(f"[INFO] ✅ Video generation complete: {len(video_paths)} videos generated")
+    
+    def _on_video_error(self, error_msg):
+        """PR#7: Handle video generation errors"""
+        self.progress_label.setText(f"❌ Error: {error_msg}")
+        self.progress_bar.setVisible(False)
+        self.cancel_video_button.setVisible(False)
+        
+        # Re-enable generate button
+        self.btn_auto.setEnabled(True)
+        
+        # Clean up worker
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self.video_worker.deleteLater()
+            self.video_worker = None
+        
+        self._append_log(f"[ERROR] Video generation failed: {error_msg}")
+    
+    def _on_cancel_video_generation(self):
+        """PR#7: Cancel ongoing video generation"""
+        if hasattr(self, 'video_worker') and self.video_worker:
+            self._append_log("[INFO] Cancelling video generation...")
+            self.progress_label.setText("Cancelling...")
+            self.video_worker.cancel()
 
     def _render_card_text(self, scene:int):
         """Render card text with plain text formatting - BUG FIX #3: Show failed count"""
