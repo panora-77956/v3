@@ -1,7 +1,9 @@
 import base64
+import json
 import mimetypes
 import re
 import time
+import uuid
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
@@ -36,7 +38,7 @@ MAX_SCENE_DESCRIPTION_LENGTH = 3000  # Maximum length for scene description when
 def _headers(bearer: str) -> dict:
     return {
         "authorization": f"Bearer {bearer}",
-        "content-type": "application/json; charset=utf-8",
+        "content-type": "text/plain;charset=UTF-8",
         "origin": "https://labs.google",
         "referer": "https://labs.google/",
         "user-agent": "Mozilla/5.0"
@@ -167,7 +169,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     # ═══════════════════════════════════════════════════════════════
     constraints = prompt_data.get("constraints", {})
     visual_style_tags = constraints.get("visual_style_tags", [])
-    
+
     # Extract style_seed from generation params (PR #8)
     generation_params = prompt_data.get("generation", {})
     style_seed = generation_params.get("style_seed")
@@ -175,7 +177,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     if visual_style_tags:
         style_text = ", ".join(visual_style_tags)
         style_lower = style_text.lower()
-        
+
         # Determine main style from tags
         main_style = "2D Hand-Drawn Anime"  # Default
         if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
@@ -194,7 +196,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
             f"REQUIRED STYLE: {main_style}\n\n"
             "THIS EXACT VISUAL STYLE FOR ALL SCENES:\n"
         )
-        
+
         # Add style-specific requirements
         if "anime" in style_lower or "flat colors" in style_lower or "outlined" in style_lower:
             style_lock += (
@@ -228,7 +230,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 "✗ Stylized or illustrated look\n"
                 "✗ Bold outlines or cartoon features\n"
             )
-        
+
         style_lock += (
             "\n🎨 STYLE CONSISTENCY RULES:\n"
             "1. Use EXACTLY the same visual style in every single scene\n"
@@ -239,11 +241,11 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
             "6. All scenes must look like they're from the SAME production\n\n"
             "⚠️  Any style variation is STRICTLY FORBIDDEN.\n"
         )
-        
+
         # Add style seed if available
         if style_seed:
             style_lock += f"Use style seed: {style_seed} for visual consistency.\n"
-        
+
         style_lock += (
             "╔═══════════════════════════════════════════════════════════╗\n"
             "║  END OF VISUAL STYLE LOCK                                ║\n"
@@ -306,7 +308,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 style_reminder = "[2D anime style with bold outlines and flat colors] "
             elif "realistic" in style_text_lower or "cinematic" in style_text_lower:
                 style_reminder = "[Photorealistic live-action style] "
-        
+
         # Add character reminder before scene action (Triple Reinforcement #2)
         character_reminder = ""
         if character_details:
@@ -318,13 +320,13 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                     if "—" in line:
                         name_part = line.split("—")[0].strip()
                         char_reminder_parts.append(name_part)
-            
+
             if char_reminder_parts:
                 character_reminder = (
-                    "⚠️  CHARACTER REMINDER: " + "; ".join(char_reminder_parts) + 
+                    "⚠️  CHARACTER REMINDER: " + "; ".join(char_reminder_parts) +
                     " — Keep EXACT same appearance as defined in CHARACTER IDENTITY LOCK above.\n\n"
                 )
-        
+
         sections.append(f"SCENE ACTION:\n{style_reminder}{character_reminder}{key_action}")
 
     # ═══════════════════════════════════════════════════════════════
@@ -350,7 +352,7 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
     # Triple Reinforcement #3: Add character and style consistency negatives
     # ═══════════════════════════════════════════════════════════════
     negatives = prompt_data.get("negatives", [])
-    
+
     # Add character consistency negatives if characters are defined (Triple Reinforcement #3)
     if character_details:
         character_negatives = [
@@ -362,12 +364,12 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
         ]
         # Prepend to existing negatives for higher priority
         negatives = character_negatives + list(negatives)
-    
+
     # Add style-specific negatives (PR #8 - Triple Reinforcement #3)
     if visual_style_tags:
         style_text_lower = ", ".join(visual_style_tags).lower()
         style_negatives = []
-        
+
         if "anime" in style_text_lower or "flat colors" in style_text_lower or "outlined" in style_text_lower:
             style_negatives = [
                 "photorealistic rendering",
@@ -393,10 +395,10 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
                 "illustrated look",
                 "stylized rendering"
             ]
-        
+
         # Prepend style negatives for high priority
         negatives = style_negatives + list(negatives)
-    
+
     if negatives:
         neg_text = "\n".join(f"- {neg}" for neg in negatives)
         sections.append(f"AVOID:\n{neg_text}")
@@ -546,8 +548,25 @@ class LabsFlowClient:
         # start with the user's chosen model, then ladder through same-family models for the aspect
         models=[model_key]+[m for m in fallbacks.get(aspect_ratio, []) if m!=model_key]
 
-        # compose prompt text (build complete prompt with all fields)
-        prompt=_build_complete_prompt_text(prompt_text)
+        # CRITICAL FIX: Send prompt as JSON string (Option A)
+        # Google Labs expects FULL JSON structure, not parsed text
+
+        if isinstance(prompt_text, dict):
+            # Convert dict to JSON string (like Google Labs)
+            prompt = json.dumps(prompt_text, ensure_ascii=False)
+        elif isinstance(prompt_text, str):
+            # If already a string, check if it's JSON or plain text
+            try:
+                # Try to parse as JSON
+                parsed = json.loads(prompt_text)
+                # If successful, it's already a JSON string - use as-is
+                prompt = prompt_text
+            except:
+                # Not JSON - it's plain text, use as-is
+                # (This maintains backward compatibility for simple text prompts)
+                prompt = prompt_text
+        else:
+            prompt = str(prompt_text)
 
         def _make_body(use_model, mid_val, copies_n):
             reqs=[]
@@ -555,9 +574,21 @@ class LabsFlowClient:
                 seed=base_seed+k
                 item={"aspectRatio":aspect_ratio,"seed":seed,"videoModelKey":use_model,"textInput":{"prompt":prompt}}
                 if mid_val: item["startImage"]={"mediaId":mid_val}
+
+                # Add metadata with sceneId (required by Google Labs)
+                item["metadata"] = {"sceneId": str(uuid.uuid4())}
+
                 reqs.append(item)
             body={"requests":reqs}
-            if project_id: body["clientContext"]={"projectId":project_id}
+
+            # FIX: Add ALL required clientContext fields (not just projectId)
+            if project_id:
+                body["clientContext"]={
+                    "projectId":project_id,
+                    "tool": "PINHOLE",                    # ← MISSING FIELD!
+                    "userPaygateTier": "PAYGATE_TIER_TWO"  # ← MISSING FIELD!
+                }
+
             return body
 
         def _try(body):
@@ -712,8 +743,14 @@ class LabsFlowClient:
         if num_videos > 4:
             num_videos = 4
 
-        # Build complete prompt with all fields
-        prompt_text = _build_complete_prompt_text(prompt)
+        # FIX: Send prompt as JSON string (same as start_one)
+
+        if isinstance(prompt, dict):
+            prompt_json_str = json.dumps(prompt, ensure_ascii=False)
+        elif isinstance(prompt, str):
+            prompt_json_str = prompt
+        else:
+            prompt_json_str = str(prompt)
 
         # Build batch request with multiple copies
         requests_list = []
@@ -723,13 +760,23 @@ class LabsFlowClient:
                 "aspectRatio": aspect_ratio,
                 "seed": seed,
                 "videoModelKey": model_key,
-                "textInput": {"prompt": prompt_text}
+                "textInput": {"prompt": prompt_json_str}
             }
+
+            # Add metadata with sceneId
+            item["metadata"] = {"sceneId": str(uuid.uuid4())}
+
             requests_list.append(item)
 
         payload = {"requests": requests_list}
+
+        # FIX: Add ALL clientContext fields
         if project_id:
-            payload["clientContext"] = {"projectId": project_id}
+            payload["clientContext"] = {
+                "projectId": project_id,
+                "tool": "PINHOLE",
+                "userPaygateTier": "PAYGATE_TIER_TWO"
+            }
 
         # Call T2V endpoint
         data = self._post(T2V_URL, payload) or {}
