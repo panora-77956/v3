@@ -148,33 +148,30 @@ class VideoGenerationWorker(QThread):
 
         # Check if multi-account mode is enabled
         if account_mgr.is_multi_account_enabled():
-            self.log.emit(f"[INFO] Multi-account mode: {len(account_mgr.get_enabled_accounts())} accounts active")
-            self.log.emit("[INFO] Using PARALLEL processing for faster generation")
-            # Note: Parallel processing would require additional implementation
-            # For now, fall back to sequential
-            self.log.emit("[WARN] Parallel processing not yet implemented in VideoWorker, using sequential")
+            enabled_accounts = account_mgr.get_enabled_accounts()
+            self.log.emit(
+                f"[INFO] Multi-account mode: {len(enabled_accounts)} accounts active"
+            )
 
-        # Get tokens with validation
-        tokens = st.get("tokens") or []
-        if not tokens:
-            self.log.emit("[ERROR] No Google Labs tokens configured! Please add tokens in API Credentials.")
-            self.error_occurred.emit("No tokens configured")
-            return
+            # Log each account's details for transparency
+            for idx, acc in enumerate(enabled_accounts, 1):
+                token_count = len(acc.tokens)
+                proj_id_short = (
+                    acc.project_id[:12] + "..." if len(acc.project_id) > 12
+                    else acc.project_id
+                )
+                self.log.emit(
+                    f"[INFO]   Account {idx}: {acc.name} | "
+                    f"Project: {proj_id_short} | Tokens: {token_count}"
+                )
 
-        # Get project_id with strict validation and fallback
-        project_id = st.get("default_project_id")
-        if not project_id or not isinstance(project_id, str) or not project_id.strip():
-            # Use fallback if missing/invalid
-            project_id = DEFAULT_PROJECT_ID
-            self.log.emit(f"[INFO] Using default project_id: {project_id}")
-        else:
-            project_id = project_id.strip()
-            self.log.emit(f"[INFO] Using configured project_id: {project_id}")
-        
-        # Validate project_id format (should be UUID-like)
-        if len(project_id) < 10:
-            self.log.emit(f"[WARN] Project ID '{project_id}' seems invalid (too short), using default")
-            project_id = DEFAULT_PROJECT_ID
+            self.log.emit(
+                "[INFO] Using SEQUENTIAL processing with round-robin account distribution"
+            )
+            self.log.emit(
+                "[WARN] Parallel processing not yet implemented in VideoWorker, "
+                "using sequential"
+            )
 
         copies = p["copies"]
         title = p["title"]
@@ -196,10 +193,76 @@ class VideoGenerationWorker(QThread):
                 return
 
             # Update progress: Starting scene
-            self.progress_updated.emit(scene_idx - 1, total_scenes, f"Submitting scene {scene_idx}...")
+            self.progress_updated.emit(
+                scene_idx - 1, total_scenes, f"Submitting scene {scene_idx}..."
+            )
 
             ratio = scene["aspect"]
             model_key = p.get("model_key", "")
+
+            # Get account for this scene (multi-account or legacy)
+            if account_mgr.is_multi_account_enabled():
+                # Use round-robin account selection for this scene
+                account = account_mgr.get_account_for_scene(scene_idx - 1)
+                if not account:
+                    self.log.emit("[ERROR] No enabled accounts available!")
+                    self.error_occurred.emit("No enabled accounts")
+                    return
+
+                tokens = account.tokens
+                project_id = account.project_id
+
+                # Validate tokens
+                if not tokens:
+                    self.log.emit(f"[ERROR] Account '{account.name}' has no tokens!")
+                    self.error_occurred.emit(f"Account '{account.name}' has no tokens")
+                    return
+
+                # Validate project_id
+                if not project_id or not isinstance(project_id, str) or not project_id.strip():
+                    self.log.emit(f"[ERROR] Account '{account.name}' has invalid project_id!")
+                    self.error_occurred.emit(
+                        f"Account '{account.name}' has invalid project_id"
+                    )
+                    return
+
+                project_id = project_id.strip()
+                proj_id_short = (
+                    project_id[:12] + "..." if len(project_id) > 12
+                    else project_id
+                )
+                self.log.emit(
+                    f"[INFO] Scene {scene_idx}: Using account '{account.name}' | "
+                    f"Project: {proj_id_short}"
+                )
+            else:
+                # Legacy mode: use old tokens and default_project_id
+                tokens = st.get("tokens") or []
+                if not tokens:
+                    self.log.emit(
+                        "[ERROR] No Google Labs tokens configured! "
+                        "Please add tokens in API Credentials."
+                    )
+                    self.error_occurred.emit("No tokens configured")
+                    return
+
+                # Get project_id with strict validation and fallback
+                project_id = st.get("default_project_id")
+                if not project_id or not isinstance(project_id, str) or not project_id.strip():
+                    # Use fallback if missing/invalid
+                    project_id = DEFAULT_PROJECT_ID
+                    self.log.emit(f"[INFO] Using default project_id: {project_id}")
+                else:
+                    project_id = project_id.strip()
+                    self.log.emit(f"[INFO] Using configured project_id: {project_id}")
+
+                # Validate project_id format (should be UUID-like)
+                if len(project_id) < 10:
+                    self.log.emit(
+                        f"[WARN] Project ID '{project_id}' seems invalid (too short), "
+                        "using default"
+                    )
+                    project_id = DEFAULT_PROJECT_ID
 
             # Create or reuse client for this project_id
             if project_id not in client_cache:
@@ -214,7 +277,9 @@ class VideoGenerationWorker(QThread):
                 "aspect_ratio": ratio
             }
             self.log.emit(f"[INFO] Start scene {scene_idx} with {copies} copies in one batch…")
-            rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=project_id)
+            rc = client.start_one(
+                body, model_key, ratio, scene["prompt"], copies=copies, project_id=project_id
+            )
 
             if rc > 0:
                 # Only create cards for operations that actually exist in the API response
