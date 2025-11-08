@@ -71,6 +71,11 @@ pip install -r requirements.txt
 }
 ```
 
+**🔑 How to Get OAuth Tokens:**
+- OAuth tokens for video generation expire after 1 hour
+- See **[OAuth Token Guide](docs/OAUTH_TOKEN_GUIDE.md)** for detailed instructions
+- Quick method: Open DevTools on labs.google → Network tab → Copy bearer token from requests
+
 **Whisk Configuration (Optional - for rate limit fallback):**
 - `labs_tokens`: Bearer tokens for Google Labs API (for Whisk image generation)
 - Whisk is automatically used as fallback when all Gemini API keys hit rate limits
@@ -203,6 +208,51 @@ The application now includes intelligent rate limit handling for Gemini API:
 - ✅ **Config Validation**: Early error detection
 - ✅ **0 Code Vulnerabilities**: CodeQL verified
 - ✅ **Secure Dependencies**: Updated Pillow >= 10.2.0, yt-dlp >= 2024.07.01
+
+---
+
+## 🐛 Xử Lý Lỗi / Troubleshooting
+
+### HTTP 401 Authentication Errors
+
+**Lỗi:** `All authentication token(s) are invalid or expired`
+
+**Nguyên nhân:** OAuth tokens hết hạn sau ~1 giờ
+
+**Giải pháp:**
+1. Xem hướng dẫn chi tiết: **[OAuth Token Guide](docs/OAUTH_TOKEN_GUIDE.md)**
+2. Lấy token mới từ labs.google (dùng DevTools)
+3. Cập nhật `config.json`
+4. Khởi động lại ứng dụng
+
+**Phương pháp nhanh:**
+```bash
+# 1. Mở https://labs.google/flow trong Chrome
+# 2. Nhấn F12 → tab Network
+# 3. Tạo video thử
+# 4. Tìm request tới aisandbox-pa.googleapis.com
+# 5. Copy bearer token từ Authorization header
+# 6. Dán vào config.json → "tokens": ["ya29..."]
+```
+
+### Rate Limit Errors
+
+**Lỗi:** Gemini API rate limit exceeded
+
+**Giải pháp:**
+- Ứng dụng tự động chuyển sang Whisk API
+- Cấu hình `labs_tokens` trong `config.json` để kích hoạt fallback
+- Hoặc đợi 10-60 giây để API key reset
+
+### Video Generation Failed
+
+**Kiểm tra:**
+1. Token còn hiệu lực? (< 1 giờ)
+2. Project ID đúng không?
+3. Kết nối internet ổn định?
+4. Xem logs để biết lỗi cụ thể
+
+---
 
 **Latest Security Scan:** 2025-11-07  
 **Status:** ✅ All vulnerabilities patched  
