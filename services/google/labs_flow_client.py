@@ -49,7 +49,7 @@ MAX_SCENE_DESCRIPTION_LENGTH = 3000  # Maximum length for scene description when
 def _headers(bearer: str) -> dict:
     return {
         "authorization": f"Bearer {bearer}",
-        "content-type": "text/plain;charset=UTF-8",
+        "content-type": "application/json; charset=utf-8",
         "origin": "https://labs.google",
         "referer": "https://labs.google/",
         "user-agent": "Mozilla/5.0"
@@ -696,37 +696,35 @@ class LabsFlowClient:
         negative_prompt = _extract_negative_prompt(original_prompt_data)
 
         def _make_body(use_model, mid_val, copies_n):
-            # Build Vertex AI format request
-            instances = []
+            # Build Google Labs API format request
+            requests_list = []
             for k in range(copies_n):
-                # Each instance contains only the prompt
-                instance = {"prompt": prompt}
-                # If we have a start image, include it
+                seed = base_seed + k if copies_n > 1 else base_seed
+                
+                request_item = {
+                    "aspectRatio": aspect_ratio,
+                    "seed": seed,
+                    "videoModelKey": use_model,
+                    "quality": "1080p"
+                }
+                
+                # Add prompt - different field for I2V vs T2V
                 if mid_val:
-                    instance["startImage"] = {"mediaId": mid_val}
-                instances.append(instance)
+                    # Image-to-video: use imageInput with startImage
+                    request_item["imageInput"] = {
+                        "startImage": {"mediaId": mid_val},
+                        "prompt": prompt
+                    }
+                else:
+                    # Text-to-video: use textInput
+                    request_item["textInput"] = {"prompt": prompt}
+                
+                requests_list.append(request_item)
             
-            # Build parameters object
-            seed = base_seed if copies_n == 1 else base_seed
-            parameters = {
-                "durationSeconds": 8,  # Default 8 seconds
-                "aspectRatio": _convert_aspect_ratio_to_vertex(aspect_ratio),
-                "resolution": "1080p",
-                "seed": seed,
-                "enhancePrompt": False,
-                "generateAudio": True,
-                "negativePrompt": negative_prompt,
-                "sampleCount": copies_n
-            }
+            # Build final body with Google Labs format
+            body = {"requests": requests_list}
             
-            # Build final body with Vertex AI format
-            body = {
-                "model": _convert_model_key_to_vertex(use_model),
-                "instances": instances,
-                "parameters": parameters
-            }
-            
-            # Include project ID if provided (in clientContext for compatibility)
+            # Include project ID if provided
             if project_id:
                 body["clientContext"] = {"projectId": project_id}
             
@@ -916,8 +914,7 @@ class LabsFlowClient:
         if num_videos > 4:
             num_videos = 4
 
-        # FIX: Send prompt as JSON string (same as start_one)
-
+        # Prepare prompt in correct format
         if isinstance(prompt, dict):
             prompt_json_str = json.dumps(prompt, ensure_ascii=False)
         elif isinstance(prompt, str):
@@ -925,33 +922,22 @@ class LabsFlowClient:
         else:
             prompt_json_str = str(prompt)
         
-        # Extract negative prompt
-        negative_prompt = _extract_negative_prompt(prompt) if isinstance(prompt, dict) else "text, words, letters, subtitles, captions, titles, credits, on-screen text, watermarks, logos, brands, camera shake, fisheye"
-
-        # Build Vertex AI format request
-        instances = []
+        # Build Google Labs API format request
+        requests_list = []
         base_seed = int(time.time() * 1000)
         for i in range(num_videos):
-            instances.append({"prompt": prompt_json_str})
+            seed = base_seed + i
+            request_item = {
+                "aspectRatio": aspect_ratio,
+                "seed": seed,
+                "videoModelKey": model_key,
+                "textInput": {"prompt": prompt_json_str},
+                "quality": "1080p"
+            }
+            requests_list.append(request_item)
         
-        # Build parameters object
-        parameters = {
-            "durationSeconds": 8,
-            "aspectRatio": _convert_aspect_ratio_to_vertex(aspect_ratio),
-            "resolution": "1080p",
-            "seed": base_seed,
-            "enhancePrompt": False,
-            "generateAudio": True,
-            "negativePrompt": negative_prompt,
-            "sampleCount": num_videos
-        }
-        
-        # Build final payload with Vertex AI format
-        payload = {
-            "model": _convert_model_key_to_vertex(model_key),
-            "instances": instances,
-            "parameters": parameters
-        }
+        # Build final payload with Google Labs format
+        payload = {"requests": requests_list}
         
         # Include project ID if provided
         if project_id:
