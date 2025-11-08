@@ -883,8 +883,7 @@ class LabsClient:
                 request_item = {
                     "aspectRatio": aspect_ratio,
                     "seed": seed,
-                    "videoModelKey": use_model,
-                    "quality": "1080p"
+                    "videoModelKey": use_model
                 }
                 
                 # Add prompt - different field for I2V vs T2V
@@ -1117,8 +1116,7 @@ class LabsClient:
                 "aspectRatio": aspect_ratio,
                 "seed": seed,
                 "videoModelKey": model_key,
-                "textInput": {"prompt": prompt_text},
-                "quality": "1080p"
+                "textInput": {"prompt": prompt_text}
             }
             requests_list.append(request_item)
         

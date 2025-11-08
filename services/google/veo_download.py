@@ -75,8 +75,7 @@ class VeoDownloader:
                 "aspectRatio": aspect_ratio,
                 "seed": seed,
                 "videoModelKey": model_key,
-                "textInput": {"prompt": prompt},
-                "quality": quality  # 720p or 1080p
+                "textInput": {"prompt": prompt}
             }
             requests_list.append(request_item)
 

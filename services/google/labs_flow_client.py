@@ -674,17 +674,18 @@ class LabsFlowClient:
             for warning in policy_warnings:
                 self._emit("content_policy_warning", warning=warning)
         
-        # Convert sanitized data back to string format for API
+        # Convert sanitized data to optimized text format for API
+        # Use _build_complete_prompt_text to convert structured JSON to text
         if isinstance(sanitized_prompt_data, dict):
-            # Convert dict to JSON string (like Google Labs)
-            prompt = json.dumps(sanitized_prompt_data, ensure_ascii=False)
+            # Convert dict to complete text prompt using the builder function
+            prompt = _build_complete_prompt_text(sanitized_prompt_data)
         elif isinstance(sanitized_prompt_data, str):
-            # Already a string - check if it's JSON
+            # Already a string - check if it's JSON that needs conversion
             try:
                 # Try to parse as JSON to validate
                 parsed = json.loads(sanitized_prompt_data)
-                # If successful, it's already a JSON string - use as-is
-                prompt = sanitized_prompt_data
+                # If successful, it's JSON - convert to text format
+                prompt = _build_complete_prompt_text(parsed)
             except:
                 # Not JSON - it's plain text, use as-is
                 # (This maintains backward compatibility for simple text prompts)
@@ -704,8 +705,7 @@ class LabsFlowClient:
                 request_item = {
                     "aspectRatio": aspect_ratio,
                     "seed": seed,
-                    "videoModelKey": use_model,
-                    "quality": "1080p"
+                    "videoModelKey": use_model
                 }
                 
                 # Add prompt - different field for I2V vs T2V
@@ -914,13 +914,21 @@ class LabsFlowClient:
         if num_videos > 4:
             num_videos = 4
 
-        # Prepare prompt in correct format
+        # Prepare prompt in correct format - convert structured JSON to text
         if isinstance(prompt, dict):
-            prompt_json_str = json.dumps(prompt, ensure_ascii=False)
+            # Convert dict to complete text prompt using the builder function
+            prompt_text = _build_complete_prompt_text(prompt)
         elif isinstance(prompt, str):
-            prompt_json_str = prompt
+            # Check if it's JSON that needs conversion
+            try:
+                parsed = json.loads(prompt)
+                # If successful, it's JSON - convert to text format
+                prompt_text = _build_complete_prompt_text(parsed)
+            except:
+                # Not JSON - it's plain text, use as-is
+                prompt_text = prompt
         else:
-            prompt_json_str = str(prompt)
+            prompt_text = str(prompt)
         
         # Build Google Labs API format request
         requests_list = []
@@ -931,8 +939,7 @@ class LabsFlowClient:
                 "aspectRatio": aspect_ratio,
                 "seed": seed,
                 "videoModelKey": model_key,
-                "textInput": {"prompt": prompt_json_str},
-                "quality": "1080p"
+                "textInput": {"prompt": prompt_text}
             }
             requests_list.append(request_item)
         
