@@ -991,6 +991,8 @@ class _Worker(QObject):
 
         # PR#5: Batch generation - make one call per scene with copies parameter (not N calls)
         for scene_idx, scene in enumerate(p["scenes"], start=1):
+            # Use actual_scene_num if provided (for retry), otherwise use scene_idx
+            actual_scene_num = scene.get("actual_scene_num", scene_idx)
             ratio = scene["aspect"]
             model_key = p.get("model_key","")
 
@@ -1001,7 +1003,7 @@ class _Worker(QObject):
 
             # Single API call with copies parameter (instead of N calls)
             body = {"prompt": scene["prompt"], "copies": copies, "model": model_key, "aspect_ratio": ratio}
-            self.log.emit(f"[INFO] Start scene {scene_idx} with {copies} copies in one batch…")
+            self.log.emit(f"[INFO] Start scene {actual_scene_num} with {copies} copies in one batch…")
             rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=project_id)
 
             if rc > 0:
@@ -1010,11 +1012,11 @@ class _Worker(QObject):
                 actual_count = len(body.get("operation_names", []))
 
                 if actual_count < copies:
-                    self.log.emit(f"[WARN] Scene {scene_idx}: API returned {actual_count} operations but {copies} copies were requested")
+                    self.log.emit(f"[WARN] Scene {actual_scene_num}: API returned {actual_count} operations but {copies} copies were requested")
 
                 # Create cards only for videos that actually exist
                 for copy_idx in range(1, actual_count + 1):
-                    card={"scene":scene_idx,"copy":copy_idx,"status":"PROCESSING","json":scene["prompt"],"url":"","path":"","thumb":"","dir":dir_videos}
+                    card={"scene":actual_scene_num,"copy":copy_idx,"status":"PROCESSING","json":scene["prompt"],"url":"","path":"","thumb":"","dir":dir_videos}
                     self.job_card.emit(card)
 
                     # Store card data with copy index for operation name mapping
@@ -1022,14 +1024,14 @@ class _Worker(QObject):
                     job_info = {
                         'card': card,
                         'body': body,
-                        'scene': scene_idx,
+                        'scene': actual_scene_num,
                         'copy': copy_idx  # 1-based index
                     }
                     jobs.append(job_info)
             else:
                 # All copies failed to start
                 for copy_idx in range(1, copies+1):
-                    card={"scene":scene_idx,"copy":copy_idx,"status":"FAILED_START","error_reason":"Failed to start video generation","json":scene["prompt"],"url":"","path":"","thumb":"","dir":dir_videos}
+                    card={"scene":actual_scene_num,"copy":copy_idx,"status":"FAILED_START","error_reason":"Failed to start video generation","json":scene["prompt"],"url":"","path":"","thumb":"","dir":dir_videos}
                     self.job_card.emit(card)
 
         # polling with improved error handling
@@ -1379,7 +1381,14 @@ class _Worker(QObject):
         self._poll_all_jobs(all_jobs, dir_videos, thumbs_dir, up4k, auto_download, quality)
 
     def _process_scene_batch(self, account, batch, p, results_queue, all_jobs, jobs_lock, thread_id):
-        """Process a batch of scenes in a separate thread"""
+        """
+        Process a batch of scenes in a separate thread
+        
+        Note: For retry operations, scenes contain 'actual_scene_num' field to preserve
+        the original scene number when retrying a single scene. This ensures logs and
+        cards show the correct scene number (e.g., "scene 2") instead of the enumeration
+        index (e.g., "scene 1" for a single-item retry batch).
+        """
         try:
             # Create event handler for diagnostic logging (uses helper method)
             def on_labs_event(event):
@@ -1403,11 +1412,13 @@ class _Worker(QObject):
                     break
 
                 try:
+                    # Use actual_scene_num if provided (for retry), otherwise use scene_idx
+                    actual_scene_num = scene.get("actual_scene_num", scene_idx)
                     ratio = scene["aspect"]
 
                     # Start generation
                     body = {"prompt": scene["prompt"], "copies": copies, "model": model_key, "aspect_ratio": ratio}
-                    results_queue.put(("log", f"{thread_name}: Starting scene {scene_idx} ({copies} copies)"))
+                    results_queue.put(("log", f"{thread_name}: Starting scene {actual_scene_num} ({copies} copies)"))
 
                     rc = client.start_one(body, model_key, ratio, scene["prompt"], copies=copies, project_id=account.project_id)
 
@@ -1415,13 +1426,13 @@ class _Worker(QObject):
                         actual_count = len(body.get("operation_names", []))
 
                         if actual_count < copies:
-                            results_queue.put(("log", f"{thread_name}: Scene {scene_idx} returned {actual_count}/{copies} operations"))
+                            results_queue.put(("log", f"{thread_name}: Scene {actual_scene_num} returned {actual_count}/{copies} operations"))
 
                         # Create job cards
                         job_infos = []
                         for copy_idx in range(1, actual_count + 1):
                             card = {
-                                "scene": scene_idx,
+                                "scene": actual_scene_num,
                                 "copy": copy_idx,
                                 "status": "PROCESSING",
                                 "json": scene["prompt"],
@@ -1435,7 +1446,7 @@ class _Worker(QObject):
                             job_info = {
                                 'card': card,
                                 'body': body,
-                                'scene': scene_idx,
+                                'scene': actual_scene_num,
                                 'copy': copy_idx,
                                 'client': client  # Keep client reference for polling
                             }
@@ -1445,8 +1456,8 @@ class _Worker(QObject):
                         with jobs_lock:
                             all_jobs.extend(job_infos)
 
-                        results_queue.put(("scene_started", (scene_idx, job_infos)))
-                        results_queue.put(("log", f"{thread_name}: Scene {scene_idx} started successfully"))
+                        results_queue.put(("scene_started", (actual_scene_num, job_infos)))
+                        results_queue.put(("log", f"{thread_name}: Scene {actual_scene_num} started successfully"))
                     else:
                         # Failed to start - API returned 0 operations
                         # This can happen due to: quota exceeded, invalid credentials,
@@ -1457,7 +1468,7 @@ class _Worker(QObject):
                         )
                         for copy_idx in range(1, copies + 1):
                             card = {
-                                "scene": scene_idx,
+                                "scene": actual_scene_num,
                                 "copy": copy_idx,
                                 "status": "FAILED_START",
                                 "error_reason": error_reason,
@@ -1469,9 +1480,9 @@ class _Worker(QObject):
                             }
                             results_queue.put(("card", card))
 
-                        results_queue.put(("scene_started", (scene_idx, [])))
+                        results_queue.put(("scene_started", (actual_scene_num, [])))
                         results_queue.put(
-                            ("log", f"{thread_name}: Scene {scene_idx} failed to start - {error_reason}")
+                            ("log", f"{thread_name}: Scene {actual_scene_num} failed to start - {error_reason}")
                         )
 
                     # Small delay between scenes to respect API rate limits
@@ -1481,11 +1492,11 @@ class _Worker(QObject):
                 except Exception as e:
                     # Exception during scene start - create failure cards
                     error_msg = f"Exception during start: {str(e)[:_MAX_ERROR_MESSAGE_LENGTH]}"
-                    results_queue.put(("log", f"{thread_name}: Error on scene {scene_idx}: {e}"))
+                    results_queue.put(("log", f"{thread_name}: Error on scene {actual_scene_num}: {e}"))
 
                     for copy_idx in range(1, copies + 1):
                         card = {
-                            "scene": scene_idx,
+                            "scene": actual_scene_num,
                             "copy": copy_idx,
                             "status": "FAILED_START",
                             "error_reason": error_msg,
@@ -1497,7 +1508,7 @@ class _Worker(QObject):
                         }
                         results_queue.put(("card", card))
 
-                    results_queue.put(("scene_started", (scene_idx, [])))
+                    results_queue.put(("scene_started", (actual_scene_num, [])))
 
             results_queue.put(("log", f"{thread_name}: Batch complete"))
 
@@ -1701,3 +1712,4 @@ class _Worker(QObject):
                         self.log.emit(f"[4K] Scene {card['scene']} Copy {card['copy']}: Upscaled")
                     except Exception as e:
                         self.log.emit(f"[ERR] 4K upscale failed: {e}")
+
