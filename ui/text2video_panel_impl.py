@@ -68,14 +68,14 @@ _MAX_ERROR_MESSAGE_LENGTH = 100
 STYLE_TAG_MAP = {
     # Animation Styles
     "anime_2d": {
-        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading"],
+        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading", "consistent character design"],
         "negatives": [
             "realistic photography", "photorealistic", "3D CGI", 
             "Disney 3D", "Pixar style", "live action", "real people"
         ]
     },
     "anime_cinematic": {
-        "tags": ["anime", "cinematic lighting", "dramatic camera", "2d animation"],
+        "tags": ["anime", "cinematic lighting", "dramatic camera", "2d animation", "consistent character design"],
         "negatives": [
             "realistic photography", "photorealistic", "3D CGI",
             "live action", "real people"
@@ -84,53 +84,53 @@ STYLE_TAG_MAP = {
     
     # Realistic Styles
     "realistic": {
-        "tags": ["photorealistic", "realistic textures", "natural lighting"],
+        "tags": ["photorealistic", "realistic textures", "natural lighting", "consistent character appearance"],
         "negatives": ["anime", "cartoon", "illustrated", "2d animation"]
     },
     "cinematic": {
-        "tags": ["cinematic", "film-like", "dramatic lighting", "professional cinematography"],
+        "tags": ["cinematic", "film-like", "dramatic lighting", "professional cinematography", "consistent character appearance"],
         "negatives": ["amateur", "low quality", "home video"]
     },
     
     # Genre Styles
     "sci_fi": {
-        "tags": ["sci-fi", "futuristic", "neon lighting", "technology", "holographic", "cyberpunk"],
+        "tags": ["sci-fi", "futuristic", "neon lighting", "technology", "holographic", "cyberpunk", "consistent character design"],
         "negatives": ["medieval", "ancient", "rustic", "natural"]
     },
     "horror": {
-        "tags": ["horror", "dark", "eerie", "suspenseful", "gothic", "ominous"],
+        "tags": ["horror", "dark", "eerie", "suspenseful", "gothic", "ominous", "consistent character appearance"],
         "negatives": ["bright", "cheerful", "colorful", "happy", "comedy"]
     },
     "fantasy": {
-        "tags": ["fantasy", "magical", "enchanted", "mystical", "vibrant", "ethereal"],
+        "tags": ["fantasy", "magical", "enchanted", "mystical", "vibrant", "ethereal", "consistent character design"],
         "negatives": ["realistic", "modern", "technological", "scientific"]
     },
     "action": {
-        "tags": ["action", "dynamic", "high energy", "intense", "fast-paced", "explosive"],
+        "tags": ["action", "dynamic", "high energy", "intense", "fast-paced", "explosive", "consistent character appearance"],
         "negatives": ["slow", "static", "calm", "peaceful"]
     },
     "romance": {
-        "tags": ["romance", "soft lighting", "warm colors", "dreamy", "gentle", "intimate"],
+        "tags": ["romance", "soft lighting", "warm colors", "dreamy", "gentle", "intimate", "consistent character appearance"],
         "negatives": ["harsh", "dark", "violent", "aggressive"]
     },
     "comedy": {
-        "tags": ["comedy", "bright", "playful", "exaggerated", "vibrant", "fun"],
+        "tags": ["comedy", "bright", "playful", "exaggerated", "vibrant", "fun", "consistent character design"],
         "negatives": ["dark", "serious", "dramatic", "horror"]
     },
     
     # Special Styles
     "documentary": {
-        "tags": ["documentary", "realistic", "natural lighting", "clear", "informative", "educational"],
+        "tags": ["documentary", "realistic", "natural lighting", "clear", "informative", "educational", "consistent appearance"],
         "negatives": ["stylized", "artistic", "abstract", "fantasy"]
     },
     "film_noir": {
-        "tags": ["film noir", "black and white", "dramatic shadows", "high contrast", "vintage", "1940s aesthetic"],
+        "tags": ["film noir", "black and white", "dramatic shadows", "high contrast", "vintage", "1940s aesthetic", "consistent character appearance"],
         "negatives": ["colorful", "bright", "modern", "futuristic"]
     },
     
     # Legacy mappings (for backward compatibility)
     "anime": {
-        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading"],
+        "tags": ["anime", "flat colors", "bold outlines", "2d animation", "cel-shading", "consistent character design"],
         "negatives": ["realistic photography", "photorealistic", "3D CGI"]
     }
 }
