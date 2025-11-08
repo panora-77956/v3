@@ -505,7 +505,8 @@ class LabsFlowClient:
                             "Please update your Google Labs OAuth tokens in the API Credentials settings. "
                             "To get new tokens, visit https://labs.google and inspect network requests."
                         )
-                        self._emit("http_other_err", code=401, detail=all_invalid_msg)
+                        # Don't emit again - we'll let the exception propagate
+                        # self._emit("http_other_err", code=401, detail=all_invalid_msg)
                         raise requests.HTTPError(all_invalid_msg)
                     
                     # Don't sleep, immediately try next token
@@ -526,12 +527,16 @@ class LabsFlowClient:
                     
                     # Check if all tokens are now invalid - fail fast
                     if len(self._invalid_tokens) >= len(self.tokens):
+                        # If error message already contains the full "All X authentication token(s)" message,
+                        # just re-raise it without emitting again (avoid duplicate messages)
+                        if "authentication token" in error_msg and "invalid or expired" in error_msg:
+                            raise  # Re-raise the original exception with full message
+                        
                         all_invalid_msg = (
                             f"All {len(self.tokens)} authentication token(s) are invalid or expired. "
                             "Please update your Google Labs OAuth tokens in the API Credentials settings. "
                             "To get new tokens, visit https://labs.google and inspect network requests."
                         )
-                        self._emit("http_other_err", code=401, detail=all_invalid_msg)
                         raise requests.HTTPError(all_invalid_msg)
                     
                     # Don't sleep, try next token immediately
@@ -648,6 +653,11 @@ class LabsFlowClient:
         def _is_invalid(e: Exception)->bool:
             s=str(e).lower()
             return ("400" in str(e)) or ("invalid json" in s) or ("invalid argument" in s)
+        
+        def _is_auth_error(e: Exception)->bool:
+            """Check if error is a 401 authentication error"""
+            s=str(e).lower()
+            return ("401" in str(e)) or ("unauthorized" in s) or ("authentication" in s and "invalid" in s)
 
         # 1) Try batch with model fallbacks
         data=None; last_err=None
@@ -657,10 +667,16 @@ class LabsFlowClient:
                 last_err=None; break
             except Exception as e:
                 last_err=e
-                if not _is_invalid(e): break
+                # Stop immediately on auth errors (401) - no point trying other models
+                if _is_auth_error(e):
+                    break
+                # Also stop on non-invalid errors (e.g., network issues)
+                if not _is_invalid(e):
+                    break
 
         # 2) If invalid and have image -> reupload once then retry ladder (I2V only)
-        if last_err and _is_invalid(last_err) and mid and job.get("image_path"):
+        # BUT skip if we have an auth error - no point reuploading if tokens are invalid
+        if last_err and _is_invalid(last_err) and not _is_auth_error(last_err) and mid and job.get("image_path"):
             try:
                 new_mid=self.upload_image_file(job["image_path"])
                 if new_mid:
@@ -670,17 +686,27 @@ class LabsFlowClient:
                             data=_try(_make_body(mkey, mid, copies)); last_err=None; break
                         except Exception as e2:
                             last_err=e2
-                            if not _is_invalid(e2): break
+                            # Stop on auth errors
+                            if _is_auth_error(e2):
+                                break
+                            if not _is_invalid(e2):
+                                break
             except Exception as e3:
                 last_err=e3
 
         # 3) Per-copy fallback (still invalid)
+        # BUT skip if we have an auth error - tokens are invalid, no point retrying
         job.setdefault("operation_names",[])
         job.setdefault("video_by_idx", [None]*copies)
         job.setdefault("thumb_by_idx", [None]*copies)
         job.setdefault("op_index_map", {})
         job.setdefault("operation_metadata", {})
         if data is None and last_err is not None:
+            # Don't retry per-copy if we have an auth error
+            if _is_auth_error(last_err):
+                # Just raise the auth error - user needs to fix their tokens
+                raise last_err
+            
             for k in range(copies):
                 for mkey in models:
                     try:
@@ -697,7 +723,12 @@ class LabsFlowClient:
                                 status = ops[0].get("status", "MEDIA_GENERATION_STATUS_PENDING")
                                 job["operation_metadata"][nm] = {"sceneId": scene_id, "status": status}
                                 break
-                    except Exception: continue
+                    except Exception as e:
+                        # If it's an auth error, stop trying and raise immediately
+                        if _is_auth_error(e):
+                            raise
+                        # Otherwise, continue trying other models/copies
+                        continue
             return len(job.get("operation_names",[]))
 
         # 4) Batch success
