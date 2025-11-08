@@ -410,14 +410,46 @@ class Text2VideoPanelV5(QWidget):
         row1.addWidget(lbl)
         self.cb_style = QComboBox()
         self.cb_style.setMinimumHeight(32)
-        self.cb_style.addItems([
-            "Điện ảnh (Cinematic)", "Anime", "Tài liệu",
-            "Quay thực", "3D/CGI", "Stop-motion",
-            "Vlog cá nhân", "Review/Unboxing", "Tutorial/Hướng dẫn",
-            "Phim ngắn", "Quảng cáo TVC", "Music Video",
-            "Phóng sự", "Sitcom/Hài kịch", "Horror/Kinh dị",
-            "Sci-Fi/Khoa học viễn tưởng", "Fantasy/Phép thuật"
-        ])
+        
+        # Group 1: Animation Styles
+        self.cb_style.addItem("━━━ ANIMATION ━━━", "separator_1")
+        self.cb_style.addItem("  Anime 2D (Phẳng, viền đậm)", "anime_2d")
+        self.cb_style.addItem("  Anime Cinematic (Anime + Điện ảnh)", "anime_cinematic")
+        
+        # Group 2: Realistic Styles
+        self.cb_style.addItem("━━━ REALISTIC ━━━", "separator_2")
+        self.cb_style.addItem("  Realistic (Chân thực)", "realistic")
+        self.cb_style.addItem("  Cinematic (Điện ảnh)", "cinematic")
+        
+        # Group 3: Genre Styles
+        self.cb_style.addItem("━━━ GENRE ━━━", "separator_3")
+        self.cb_style.addItem("  Sci-fi (Khoa học viễn tưởng)", "sci_fi")
+        self.cb_style.addItem("  Horror (Kinh dị)", "horror")
+        self.cb_style.addItem("  Fantasy (Thần thoại)", "fantasy")
+        self.cb_style.addItem("  Action (Hành động)", "action")
+        self.cb_style.addItem("  Romance (Lãng mạn)", "romance")
+        self.cb_style.addItem("  Comedy (Hài hước)", "comedy")
+        
+        # Group 4: Special Styles
+        self.cb_style.addItem("━━━ SPECIAL ━━━", "separator_4")
+        self.cb_style.addItem("  Documentary (Phim tài liệu)", "documentary")
+        self.cb_style.addItem("  Film Noir (Đen trắng cổ điển)", "film_noir")
+        
+        # Set default to Anime 2D (index 1, after first separator)
+        self.cb_style.setCurrentIndex(1)
+        
+        # Disable separator items so they can't be selected
+        for i in range(self.cb_style.count()):
+            item_data = self.cb_style.itemData(i)
+            if item_data and str(item_data).startswith("separator"):
+                # Make separator items non-selectable
+                item_model = self.cb_style.model()
+                item = item_model.item(i)
+                item.setEnabled(False)
+                # Style separator items differently
+                item.setBackground(QColor("#2a2a2a"))
+                item.setForeground(QColor("#888888"))
+        
         row1.addWidget(self.cb_style, 1)
 
         row1.addSpacing(12)
@@ -1047,7 +1079,7 @@ class Text2VideoPanelV5(QWidget):
         payload = dict(
             project=self.ed_project.text().strip(),
             idea=idea,
-            style=self.cb_style.currentText(),
+            style=self.cb_style.currentData() or "anime_2d",  # Use data key, fallback to anime_2d
             duration=int(self.sp_duration.value()),
             provider="Gemini 2.5",
             out_lang_code=self.cb_out_lang.currentData(),
@@ -1268,7 +1300,7 @@ class Text2VideoPanelV5(QWidget):
                     j = build_prompt_json(
                         i, sc.get("prompt_vi", ""), sc.get("prompt_tgt", ""),
                         lang_code, self.cb_ratio.currentText(),
-                        self.cb_style.currentText(),
+                        self.cb_style.currentData() or "anime_2d",  # Use data key
                         character_bible=character_bible_basic,
                         voice_settings=voice_settings,
                         location_context=location_ctx,
@@ -1330,7 +1362,7 @@ class Text2VideoPanelV5(QWidget):
         lang_code = self.cb_out_lang.currentData()
         ratio_key = self.cb_ratio.currentText()
         ratio = _ASPECT_MAP.get(ratio_key, "VIDEO_ASPECT_RATIO_LANDSCAPE")
-        style = self.cb_style.currentText()
+        style = self.cb_style.currentData() or "anime_2d"  # Use data key
         scenes = []
 
         character_bible_basic = (
@@ -1586,7 +1618,7 @@ class Text2VideoPanelV5(QWidget):
             j = build_prompt_json(
                 row + 1, vi, tgt, lang_code,
                 self.cb_ratio.currentText(),
-                self.cb_style.currentText(),
+                self.cb_style.currentData() or "anime_2d",  # Use data key
                 voice_settings=voice_settings,
                 location_context=location_ctx,
                 tts_provider=tts_provider,
@@ -2248,7 +2280,7 @@ class Text2VideoPanelV5(QWidget):
             j = build_prompt_json(
                 scene_num, vi, tgt, lang_code,
                 self.cb_ratio.currentText(),
-                self.cb_style.currentText(),
+                self.cb_style.currentData() or "anime_2d",  # Use data key
                 voice_settings=voice_settings,
                 location_context=location_ctx,
                 tts_provider=tts_provider,
@@ -2329,7 +2361,7 @@ class Text2VideoPanelV5(QWidget):
         lang_code = self.cb_out_lang.currentData()
         ratio_key = self.cb_ratio.currentText()
         ratio = _ASPECT_MAP.get(ratio_key, "VIDEO_ASPECT_RATIO_LANDSCAPE")
-        style = self.cb_style.currentText()
+        style = self.cb_style.currentData() or "anime_2d"  # Use data key
 
         # ADD: Log settings
         self._append_log(f"[INFO] Settings - Lang: {lang_code}, Ratio: {ratio_key}, Style: {style}")
