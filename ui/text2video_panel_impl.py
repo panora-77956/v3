@@ -667,7 +667,7 @@ class _Worker(QObject):
                    {"kind": str, ...event-specific fields...}
                    Common event kinds: video_generator_info, api_call_info, 
                    trying_model, model_success, model_failed, operations_result,
-                   start_one_result, http_other_err
+                   start_one_result, http_other_err, content_policy_warning
             log_func: Callable[[str], None] - Logging function to use.
                      Takes a formatted log message string.
                      Examples: self.log.emit or lambda msg: queue.put(("log", msg))
@@ -706,6 +706,12 @@ class _Worker(QObject):
             code = event.get("code", "")
             detail = event.get("detail", "")
             log_func(f"[ERROR] HTTP {code}: {detail}")
+        elif kind == "content_policy_warning":
+            # Content policy filter warning (e.g., minor references aged up)
+            warning = event.get("warning", "")
+            log_func(f"[CONTENT POLICY] ⚠️  {warning}")
+            log_func(f"[INFO] Prompt automatically sanitized to comply with Google's content policies")
+
 
 
     def run(self):
