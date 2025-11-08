@@ -7,6 +7,17 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
 
+# Import the prompt builder function to show actual API prompt
+try:
+    from services.google.labs_flow_client import _build_complete_prompt_text
+except ImportError:
+    # Fallback if import fails
+    def _build_complete_prompt_text(prompt_data):
+        """Fallback: just convert to string"""
+        if isinstance(prompt_data, str):
+            return prompt_data
+        return json.dumps(prompt_data, ensure_ascii=False, indent=2)
+
 
 class PromptViewer(QDialog):
     """Enhanced Prompt Viewer with parsed JSON sections"""
@@ -33,16 +44,19 @@ class PromptViewer(QDialog):
         tabs = QTabWidget()
         tabs.setFont(QFont("Segoe UI", 11, QFont.Bold))
 
-        # Tab 1: Prompts (Vietnamese + English)
+        # Tab 1: API Prompt (NEW - The actual text sent to Google Labs)
+        tabs.addTab(self._build_api_prompt_tab(), "🚀 API Prompt")
+
+        # Tab 2: Prompts (Vietnamese + English)
         tabs.addTab(self._build_prompts_tab(), "📝 Prompts")
 
-        # Tab 2: Details (Audio, Camera, Character...)
+        # Tab 3: Details (Audio, Camera, Character...)
         tabs.addTab(self._build_details_tab(), "🎬 Chi tiết")
 
-        # Tab 3: Raw JSON
+        # Tab 4: Raw JSON
         tabs.addTab(self._build_json_tab(), "📄 JSON")
 
-        # Tab 4: Dialogues (if available)
+        # Tab 5: Dialogues (if available)
         if dialogues:
             tabs.addTab(self._build_dialogues_tab(dialogues), "💬 Lời thoại")
 
@@ -93,6 +107,84 @@ class PromptViewer(QDialog):
                 background: #B2EBF2;
             }
         """)
+
+    def _build_api_prompt_tab(self):
+        """Tab showing the actual formatted prompt sent to Google Labs API"""
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        layout.setContentsMargins(16, 16, 16, 16)
+        layout.setSpacing(16)
+
+        # Header with explanation
+        header = QLabel(
+            "📤 This is the ACTUAL formatted text prompt sent to Google Labs Flow API.\n"
+            "The API converts the JSON structure below into this optimized text format."
+        )
+        header.setWordWrap(True)
+        header.setFont(QFont("Segoe UI", 11))
+        header.setStyleSheet("""
+            QLabel {
+                background: #E3F2FD;
+                color: #0D47A1;
+                padding: 12px;
+                border-radius: 6px;
+                border-left: 4px solid #1976D2;
+            }
+        """)
+        layout.addWidget(header)
+
+        # Build the actual API prompt text
+        try:
+            api_prompt_text = _build_complete_prompt_text(self.data)
+        except Exception as e:
+            api_prompt_text = f"[Error building API prompt: {e}]\n\nFallback to JSON:\n{self.prompt_json}"
+
+        # Text area showing the formatted prompt
+        text_edit = QTextEdit()
+        text_edit.setPlainText(api_prompt_text)
+        text_edit.setReadOnly(True)
+        text_edit.setFont(QFont("Consolas", 10))
+        text_edit.setStyleSheet("""
+            QTextEdit {
+                background: #FAFAFA;
+                border: 2px solid #2196F3;
+                border-radius: 6px;
+                padding: 12px;
+                font-family: 'Consolas', 'Courier New', monospace;
+                line-height: 1.5;
+            }
+        """)
+        layout.addWidget(text_edit)
+
+        # Info label
+        info = QLabel(
+            "💡 Tip: This text format is optimized for Google's Veo video generation model. "
+            "It includes character consistency rules, visual style locks, and scene descriptions."
+        )
+        info.setWordWrap(True)
+        info.setFont(QFont("Segoe UI", 9))
+        info.setStyleSheet("color: #666; padding: 8px;")
+        layout.addWidget(info)
+
+        # Copy button
+        btn_copy = QPushButton("📋 Copy API Prompt to Clipboard")
+        btn_copy.setFixedHeight(40)
+        btn_copy.setStyleSheet("""
+            QPushButton {
+                background: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 0 20px;
+            }
+            QPushButton:hover { background: #1976D2; }
+        """)
+        btn_copy.clicked.connect(lambda: self._copy_to_clipboard(api_prompt_text))
+        layout.addWidget(btn_copy)
+
+        return widget
 
     def _build_prompts_tab(self):
         """Tab 1: Show Vietnamese and English prompts with copy buttons"""
