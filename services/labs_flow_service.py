@@ -430,12 +430,17 @@ class LabsClient:
         # Note: We don't directly iterate over tokens_to_try, instead we use round-robin
         # via self._tok() and skip invalid ones. tokens_to_try is used to:
         # 1. Determine max_attempts based on valid tokens
-        # 2. Reset invalid_tokens set when all tokens are invalid
+        # 2. Check if all tokens are already invalid (fail fast)
         tokens_to_try = [t for t in self.tokens if t not in self._invalid_tokens]
         if not tokens_to_try:
-            # All tokens are invalid, try them anyway as a fallback
-            tokens_to_try = self.tokens.copy()
-            self._invalid_tokens.clear()
+            # All tokens are invalid - fail immediately with clear error message
+            error_msg = (
+                f"All {len(self.tokens)} authentication token(s) are invalid or expired. "
+                "Please update your Google Labs OAuth tokens in the API Credentials settings. "
+                "To get new tokens, visit https://labs.google and inspect network requests."
+            )
+            self._emit("http_other_err", code=401, detail=error_msg)
+            raise requests.HTTPError(error_msg)
 
         max_attempts = min(3 * len(tokens_to_try), self.MAX_RETRY_ATTEMPTS)
         attempts_made = 0
@@ -467,6 +472,17 @@ class LabsClient:
                     token_id = f"Token #{self.tokens.index(current_token) + 1}" if current_token in self.tokens else "Unknown token"
                     error_msg = f"{token_id} is invalid (401 Unauthorized)"
                     self._emit("http_other_err", code=401, detail=error_msg)
+                    
+                    # Check if all tokens are now invalid - fail fast
+                    if len(self._invalid_tokens) >= len(self.tokens):
+                        all_invalid_msg = (
+                            f"All {len(self.tokens)} authentication token(s) are invalid or expired. "
+                            "Please update your Google Labs OAuth tokens in the API Credentials settings. "
+                            "To get new tokens, visit https://labs.google and inspect network requests."
+                        )
+                        self._emit("http_other_err", code=401, detail=all_invalid_msg)
+                        raise requests.HTTPError(all_invalid_msg)
+                    
                     # Don't sleep, immediately try next token
                     last = requests.HTTPError(f"401 Client Error: Unauthorized for url: {url}")
                     continue
@@ -482,6 +498,17 @@ class LabsClient:
                     # Mark current token as invalid
                     if current_token:
                         self._invalid_tokens.add(current_token)
+                    
+                    # Check if all tokens are now invalid - fail fast
+                    if len(self._invalid_tokens) >= len(self.tokens):
+                        all_invalid_msg = (
+                            f"All {len(self.tokens)} authentication token(s) are invalid or expired. "
+                            "Please update your Google Labs OAuth tokens in the API Credentials settings. "
+                            "To get new tokens, visit https://labs.google and inspect network requests."
+                        )
+                        self._emit("http_other_err", code=401, detail=all_invalid_msg)
+                        raise requests.HTTPError(all_invalid_msg)
+                    
                     # Don't sleep, try next token immediately
                     last=e
                     continue
