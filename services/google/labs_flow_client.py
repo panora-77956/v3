@@ -78,6 +78,25 @@ def _collect_urls_any(obj: Any) -> List[str]:
     lst=list(urls); lst.sort(key=lambda u: (0 if "/video/" in u else 1, len(u)))
     return lst
 
+def _convert_aspect_ratio_to_vertex(aspect_ratio: str) -> str:
+    """Convert Google Labs aspect ratio format to Vertex AI format."""
+    mapping = {
+        "VIDEO_ASPECT_RATIO_LANDSCAPE": "16:9",
+        "VIDEO_ASPECT_RATIO_PORTRAIT": "9:16",
+        "VIDEO_ASPECT_RATIO_SQUARE": "1:1"
+    }
+    return mapping.get(aspect_ratio, "16:9")
+
+def _convert_model_key_to_vertex(model_key: str) -> str:
+    """Convert Google Labs model key to Vertex AI model format."""
+    # Extract base model name from keys like "veo_3_1_t2v_fast_ultra"
+    if "veo_3_1" in model_key or "veo_3.1" in model_key:
+        return "veo-3.1"
+    elif "veo_2" in model_key or "veo_2.0" in model_key:
+        return "veo-2.0"
+    # Default to veo-3.1
+    return "veo-3.1"
+
 def _normalize_status(item: dict) -> str:
     if item.get("done") is True:
         if item.get("error"): return "FAILED"
@@ -86,6 +105,14 @@ def _normalize_status(item: dict) -> str:
     if s in ("MEDIA_GENERATION_STATUS_SUCCEEDED","SUCCEEDED","SUCCESS"): return "DONE"
     if s in ("MEDIA_GENERATION_STATUS_FAILED","FAILED","ERROR"): return "FAILED"
     return "PROCESSING"
+
+def _extract_negative_prompt(prompt_data: Any) -> str:
+    """Extract negative prompt from prompt data structure."""
+    if isinstance(prompt_data, dict):
+        negatives = prompt_data.get("negatives", [])
+        if isinstance(negatives, list) and negatives:
+            return ", ".join(str(neg) for neg in negatives)
+    return "text, words, letters, subtitles, captions, titles, credits, on-screen text, watermarks, logos, brands, camera shake, fisheye, photorealistic, live action, 3D CGI, Disney 3D, Pixar style"
 
 def _build_complete_prompt_text(prompt_data: Any) -> str:
     """
@@ -664,24 +691,45 @@ class LabsFlowClient:
                 prompt = sanitized_prompt_data
         else:
             prompt = str(sanitized_prompt_data)
+        
+        # Extract negative prompt
+        negative_prompt = _extract_negative_prompt(original_prompt_data)
 
         def _make_body(use_model, mid_val, copies_n):
-            reqs=[]
+            # Build Vertex AI format request
+            instances = []
             for k in range(copies_n):
-                seed=base_seed+k
-                item={"aspectRatio":aspect_ratio,"seed":seed,"videoModelKey":use_model,"textInput":{"prompt":prompt}}
-                if mid_val: item["startImage"]={"mediaId":mid_val}
-
-                # Add metadata with sceneId (required by Google Labs)
-                item["metadata"] = {"sceneId": str(uuid.uuid4())}
-
-                reqs.append(item)
-            body={"requests":reqs}
-
-            # Add clientContext with projectId
+                # Each instance contains only the prompt
+                instance = {"prompt": prompt}
+                # If we have a start image, include it
+                if mid_val:
+                    instance["startImage"] = {"mediaId": mid_val}
+                instances.append(instance)
+            
+            # Build parameters object
+            seed = base_seed if copies_n == 1 else base_seed
+            parameters = {
+                "durationSeconds": 8,  # Default 8 seconds
+                "aspectRatio": _convert_aspect_ratio_to_vertex(aspect_ratio),
+                "resolution": "1080p",
+                "seed": seed,
+                "enhancePrompt": False,
+                "generateAudio": True,
+                "negativePrompt": negative_prompt,
+                "sampleCount": copies_n
+            }
+            
+            # Build final body with Vertex AI format
+            body = {
+                "model": _convert_model_key_to_vertex(use_model),
+                "instances": instances,
+                "parameters": parameters
+            }
+            
+            # Include project ID if provided (in clientContext for compatibility)
             if project_id:
                 body["clientContext"] = {"projectId": project_id}
-
+            
             return body
 
         def _try(body):
@@ -876,26 +924,36 @@ class LabsFlowClient:
             prompt_json_str = prompt
         else:
             prompt_json_str = str(prompt)
+        
+        # Extract negative prompt
+        negative_prompt = _extract_negative_prompt(prompt) if isinstance(prompt, dict) else "text, words, letters, subtitles, captions, titles, credits, on-screen text, watermarks, logos, brands, camera shake, fisheye"
 
-        # Build batch request with multiple copies
-        requests_list = []
+        # Build Vertex AI format request
+        instances = []
+        base_seed = int(time.time() * 1000)
         for i in range(num_videos):
-            seed = int(time.time() * 1000) + i
-            item = {
-                "aspectRatio": aspect_ratio,
-                "seed": seed,
-                "videoModelKey": model_key,
-                "textInput": {"prompt": prompt_json_str}
-            }
-
-            # Add metadata with sceneId
-            item["metadata"] = {"sceneId": str(uuid.uuid4())}
-
-            requests_list.append(item)
-
-        payload = {"requests": requests_list}
-
-        # Add clientContext with projectId
+            instances.append({"prompt": prompt_json_str})
+        
+        # Build parameters object
+        parameters = {
+            "durationSeconds": 8,
+            "aspectRatio": _convert_aspect_ratio_to_vertex(aspect_ratio),
+            "resolution": "1080p",
+            "seed": base_seed,
+            "enhancePrompt": False,
+            "generateAudio": True,
+            "negativePrompt": negative_prompt,
+            "sampleCount": num_videos
+        }
+        
+        # Build final payload with Vertex AI format
+        payload = {
+            "model": _convert_model_key_to_vertex(model_key),
+            "instances": instances,
+            "parameters": parameters
+        }
+        
+        # Include project ID if provided
         if project_id:
             payload["clientContext"] = {"projectId": project_id}
 
