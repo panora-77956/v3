@@ -1448,7 +1448,8 @@ class _Worker(QObject):
                                 'body': body,
                                 'scene': actual_scene_num,
                                 'copy': copy_idx,
-                                'client': client  # Keep client reference for polling
+                                'client': client,  # Keep client reference for polling
+                                'project_id': account.project_id  # Issue #2 FIX: Store project_id for batch_check
                             }
                             job_infos.append(job_info)
 
@@ -1551,6 +1552,8 @@ class _Worker(QObject):
                 # Extract all operation names for this client
                 names = []
                 metadata = {}
+                # Issue #2 FIX: Get project_id from first job (all jobs for same client have same project_id)
+                project_id = None
                 for job_info in client_job_list:
                     job_dict = job_info['body']
                     names.extend(job_dict.get("operation_names", []))
@@ -1558,13 +1561,16 @@ class _Worker(QObject):
                     op_meta = job_dict.get("operation_metadata", {})
                     if op_meta:
                         metadata.update(op_meta)
+                    # Get project_id from first job
+                    if project_id is None:
+                        project_id = job_info.get('project_id')
 
                 if not names:
                     continue
 
-                # Batch check
+                # Batch check - Issue #2 FIX: Pass project_id for multi-account support
                 try:
-                    rs = client.batch_check_operations(names, metadata)
+                    rs = client.batch_check_operations(names, metadata, project_id=project_id)
                 except Exception as e:
                     self.log.emit(f"[WARN] Poll error (round {poll_round + 1}): {e}")
                     time.sleep(10)
