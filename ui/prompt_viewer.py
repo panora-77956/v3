@@ -1,8 +1,10 @@
 import json
+import os
+from datetime import datetime
 from PyQt5.QtWidgets import (
     QDialog, QHBoxLayout, QPushButton, QTabWidget, QTextEdit, 
     QVBoxLayout, QWidget, QLabel, QScrollArea, QFrame, QGroupBox,
-    QApplication
+    QApplication, QFileDialog, QMessageBox
 )
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QFont
@@ -166,8 +168,12 @@ class PromptViewer(QDialog):
         info.setStyleSheet("color: #666; padding: 8px;")
         layout.addWidget(info)
 
+        # Button layout
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(12)
+        
         # Copy button
-        btn_copy = QPushButton("📋 Copy API Prompt to Clipboard")
+        btn_copy = QPushButton("📋 Copy to Clipboard")
         btn_copy.setFixedHeight(40)
         btn_copy.setStyleSheet("""
             QPushButton {
@@ -182,7 +188,27 @@ class PromptViewer(QDialog):
             QPushButton:hover { background: #1976D2; }
         """)
         btn_copy.clicked.connect(lambda: self._copy_to_clipboard(api_prompt_text))
-        layout.addWidget(btn_copy)
+        btn_layout.addWidget(btn_copy)
+        
+        # Save button
+        btn_save = QPushButton("💾 Save as Text File")
+        btn_save.setFixedHeight(40)
+        btn_save.setStyleSheet("""
+            QPushButton {
+                background: #4CAF50;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 0 20px;
+            }
+            QPushButton:hover { background: #45a049; }
+        """)
+        btn_save.clicked.connect(lambda: self._save_text_prompt(api_prompt_text))
+        btn_layout.addWidget(btn_save)
+        
+        layout.addLayout(btn_layout)
 
         return widget
 
@@ -550,6 +576,24 @@ class PromptViewer(QDialog):
         """)
         layout.addWidget(text_edit)
 
+        # Save JSON button
+        btn_save_json = QPushButton("💾 Save as JSON File")
+        btn_save_json.setFixedHeight(40)
+        btn_save_json.setStyleSheet("""
+            QPushButton {
+                background: #FF9800;
+                color: white;
+                border: none;
+                border-radius: 20px;
+                font-weight: bold;
+                font-size: 13px;
+                padding: 0 20px;
+            }
+            QPushButton:hover { background: #F57C00; }
+        """)
+        btn_save_json.clicked.connect(lambda: self._save_json_prompt(self.prompt_json))
+        layout.addWidget(btn_save_json)
+
         return widget
 
     def _build_dialogues_tab(self, dialogues):
@@ -592,3 +636,90 @@ class PromptViewer(QDialog):
                 # Could show a toast notification here
         except Exception:
             pass
+
+    def _save_text_prompt(self, prompt_text):
+        """Save the formatted text prompt to a file"""
+        try:
+            # Generate default filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"google_labs_prompt_{timestamp}.txt"
+            
+            # Open file dialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Google Labs Flow Prompt",
+                default_name,
+                "Text Files (*.txt);;All Files (*.*)"
+            )
+            
+            if file_path:
+                # Ensure .txt extension
+                if not file_path.endswith('.txt'):
+                    file_path += '.txt'
+                
+                # Write prompt to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    # Add header comment
+                    f.write("# Google Labs Flow API Prompt\n")
+                    f.write(f"# Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+                    f.write("# This is the formatted text prompt sent to Google Labs Veo API\n")
+                    f.write("#" + "="*70 + "\n\n")
+                    f.write(prompt_text)
+                
+                # Show success message
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"Prompt saved successfully to:\n{file_path}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to save prompt:\n{str(e)}"
+            )
+
+    def _save_json_prompt(self, json_text):
+        """Save the JSON prompt to a file"""
+        try:
+            # Generate default filename with timestamp
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            default_name = f"google_labs_prompt_{timestamp}.json"
+            
+            # Open file dialog
+            file_path, _ = QFileDialog.getSaveFileName(
+                self,
+                "Save Prompt as JSON",
+                default_name,
+                "JSON Files (*.json);;All Files (*.*)"
+            )
+            
+            if file_path:
+                # Ensure .json extension
+                if not file_path.endswith('.json'):
+                    file_path += '.json'
+                
+                # Parse and re-format JSON for pretty printing
+                try:
+                    data = json.loads(json_text)
+                    formatted_json = json.dumps(data, ensure_ascii=False, indent=2)
+                except:
+                    # If parsing fails, save as-is
+                    formatted_json = json_text
+                
+                # Write JSON to file
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(formatted_json)
+                
+                # Show success message
+                QMessageBox.information(
+                    self,
+                    "Success",
+                    f"JSON prompt saved successfully to:\n{file_path}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                self,
+                "Error",
+                f"Failed to save JSON:\n{str(e)}"
+            )
