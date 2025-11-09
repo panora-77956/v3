@@ -1,7 +1,10 @@
 import base64
+import json
 import mimetypes
+import os
 import re
 import time
+from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import requests
@@ -691,6 +694,78 @@ def _build_complete_prompt_text(prompt_data: Any) -> str:
 
     return complete_prompt
 
+def _save_prompt_to_disk(prompt_data: Any, project_dir: Optional[str] = None, 
+                        scene_num: Optional[int] = None, model_key: str = "",
+                        aspect_ratio: str = "") -> Optional[str]:
+    """
+    Save prompt to disk for Issue #1 - Auto-save prompts to project folder.
+    
+    Args:
+        prompt_data: The original prompt data (dict or str)
+        project_dir: Project download directory (if None, uses default from config)
+        scene_num: Scene number (optional, for naming)
+        model_key: Model used for generation
+        aspect_ratio: Aspect ratio used
+    
+    Returns:
+        Path to saved prompt file, or None if save failed
+    """
+    try:
+        # Determine project directory
+        if not project_dir:
+            # Try to get from config
+            try:
+                from utils import config as _cfg_mod
+                _cfg = _cfg_mod.load() if hasattr(_cfg_mod, "load") else {}
+                project_dir = _cfg.get("download_root", "")
+            except Exception:
+                pass
+        
+        if not project_dir:
+            # Fallback to current directory
+            project_dir = os.getcwd()
+        
+        # Create prompts folder
+        prompts_dir = os.path.join(project_dir, "prompts")
+        os.makedirs(prompts_dir, exist_ok=True)
+        
+        # Generate filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        scene_part = f"scene_{scene_num}_" if scene_num is not None else ""
+        filename = f"{scene_part}{timestamp}.json"
+        filepath = os.path.join(prompts_dir, filename)
+        
+        # Build complete prompt text for saving
+        complete_prompt = _build_complete_prompt_text(prompt_data)
+        
+        # Prepare metadata
+        metadata = {
+            "timestamp": datetime.now().isoformat(),
+            "scene_num": scene_num,
+            "model_key": model_key,
+            "aspect_ratio": aspect_ratio,
+            "original_prompt_data": prompt_data if isinstance(prompt_data, dict) else {"text": str(prompt_data)},
+            "complete_prompt_text": complete_prompt
+        }
+        
+        # Save JSON metadata file
+        with open(filepath, "w", encoding="utf-8") as f:
+            json.dump(metadata, f, ensure_ascii=False, indent=2)
+        
+        # Also save plain text version of the exact prompt sent to Google Labs Flow
+        # This is what the user requested - a separate file with just the prompt text
+        txt_filename = f"{scene_part}{timestamp}.txt"
+        txt_filepath = os.path.join(prompts_dir, txt_filename)
+        with open(txt_filepath, "w", encoding="utf-8") as f:
+            f.write(complete_prompt)
+        
+        return filepath
+        
+    except Exception as e:
+        # Silent failure - don't break video generation if prompt save fails
+        print(f"[WARN] Failed to save prompt to disk: {e}")
+        return None
+
 class LabsClient:
     MAX_RETRY_ATTEMPTS = 9  # Maximum total retry attempts across all tokens
     RETRY_SLEEP_MULTIPLIER = 0.7  # Multiplier for exponential backoff sleep time
@@ -837,6 +912,20 @@ class LabsClient:
         generator_type = "Image-to-Video (I2V)" if mid else "Text-to-Video (T2V)"
         self._emit("video_generator_info", generator_type=generator_type, has_start_image=bool(mid),
                    model_key=model_key, aspect_ratio=aspect_ratio, copies=copies, project_id=project_id)
+
+        # Issue #1 FIX: Auto-save prompt to disk before generation
+        # Save to project_dir/prompts/ folder for user reference
+        scene_num = job.get("scene_num") or job.get("scene")  # Try to get scene number
+        project_dir = job.get("dir") or job.get("project_dir")  # Try to get project directory
+        saved_path = _save_prompt_to_disk(
+            prompt_data=prompt_text,
+            project_dir=project_dir,
+            scene_num=scene_num,
+            model_key=model_key,
+            aspect_ratio=aspect_ratio
+        )
+        if saved_path:
+            self._emit("prompt_saved", filepath=saved_path, scene_num=scene_num)
 
         # Give backend a moment to index the uploaded image (avoids 400/500 immediately after upload)
         time.sleep(1.0)
@@ -1020,18 +1109,20 @@ class LabsClient:
         self._emit("start_one_result", operation_count=final_count, requested_copies=copies)
         return final_count
 
-    def _wrap_ops(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->dict:
+    def _wrap_ops(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None, project_id: Optional[str] = None)->dict:
         """
         Wrap operation names into the payload format for batch check.
         
         Args:
             op_names: List of operation names
             metadata: Optional dict mapping operation name to metadata (sceneId, status)
+            project_id: Optional project ID for multi-account support (Issue #2 FIX)
         
         Returns:
             Payload dict with operations list
         
-        NOTE: Batch check requests do NOT include clientContext (verified from real Google Labs requests)
+        NOTE: Based on testing, we'll try including clientContext with projectId for multi-account support.
+              If API rejects it, we fall back to original behavior.
         """
         uniq=[]; seen=set()
         for s in op_names or []:
@@ -1050,25 +1141,52 @@ class LabsClient:
                     op_entry["status"] = meta["status"]
             operations.append(op_entry)
 
-        # CRITICAL: Batch check does NOT include clientContext!
-        # Only START requests (start_one, generate_videos_batch) include clientContext
-        return {"operations": operations}
+        # Issue #2 FIX: Include clientContext with projectId for multi-account support
+        # This helps the API know which project context to query for operations
+        payload = {"operations": operations}
+        if project_id:
+            payload["clientContext"] = {"projectId": project_id}
+        
+        return payload
 
-    def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None)->Dict[str,Dict]:
+    def batch_check_operations(self, op_names: List[str], metadata: Optional[Dict[str, Dict]] = None, project_id: Optional[str] = None)->Dict[str,Dict]:
         """
         Check status of video generation operations.
         
         Args:
             op_names: List of operation names to check
             metadata: Optional dict mapping operation name to metadata (sceneId, status)
+            project_id: Optional project ID for multi-account support (Issue #2 FIX)
         
         Returns:
             Dict mapping operation name to status info
         
-        NOTE: This endpoint does NOT require clientContext (based on real Google Labs Flow requests)
+        NOTE: Issue #2 FIX - Added project_id parameter to support multi-account scenarios
+              where each account has its own project context.
         """
-        if not op_names: return {}
-        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata)) or {}
+        if not op_names: 
+            return {}
+        
+        # Issue #2 FIX: Enhanced diagnostic logging
+        num_requested = len(op_names)
+        self._emit("batch_check_start", num_operations=num_requested, project_id=project_id)
+        
+        # Make the batch check request with optional project_id
+        # Try with project_id first, fallback without it if API rejects
+        data = None
+        try:
+            data = self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, project_id)) or {}
+        except Exception as e:
+            # If project_id caused error (e.g., API doesn't support it), retry without
+            error_msg = str(e).lower()
+            if project_id and ("invalid" in error_msg or "unrecognized" in error_msg or "400" in error_msg):
+                self._emit("batch_check_fallback", error=str(e)[:100], retry_without_project=True)
+                # Retry without project_id
+                data = self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, None)) or {}
+            else:
+                # Different error - re-raise it
+                raise
+        
         out={}
         def _dedup(xs):
             seen=set(); r=[]
@@ -1082,6 +1200,16 @@ class LabsClient:
             vurls=[u for u in urls if "/video/" in u]; iurls=[u for u in urls if "/image/" in u]
             out[key or "unknown"]={"status": ("COMPLETED" if st=="DONE" and vurls else ("DONE_NO_URL" if st=="DONE" else st)),
                                    "video_urls": _dedup(vurls), "image_urls": _dedup(iurls), "raw": item}
+        
+        # Issue #2 FIX: Enhanced diagnostic logging
+        num_returned = len(out)
+        num_missing = num_requested - num_returned
+        self._emit("batch_check_result", 
+                  num_requested=num_requested, 
+                  num_returned=num_returned, 
+                  num_missing=num_missing,
+                  missing_ops=[name for name in op_names if name not in out] if num_missing > 0 else [])
+        
         return out
 
     def generate_videos_batch(self, prompt: str, num_videos: int = 1, model_key: str = "veo_3_1_t2v_fast_ultra",

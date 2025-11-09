@@ -223,9 +223,12 @@ class CheckWorker(QObject):
                             account_metadata.update(op_meta)
                     
                     # Check this account's operations
+                    # Issue #2 FIX: Pass project_id for multi-account support
                     if account_names:
                         try:
-                            account_rs = account_client.batch_check_operations(account_names, account_metadata)
+                            self.log.emit("INFO", f"Checking {len(account_names)} operations for {acc_name} (project: {account.project_id[:8]}...)")
+                            account_rs = account_client.batch_check_operations(account_names, account_metadata, project_id=account.project_id)
+                            self.log.emit("INFO", f"Got {len(account_rs)} results from {acc_name}")
                             rs.update(account_rs)
                         except Exception as e:
                             self.log.emit("ERR", f"Check lỗi cho {acc_name}: {e.__class__.__name__}: {e}")
