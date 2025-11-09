@@ -1165,7 +1165,20 @@ class LabsClient:
         self._emit("batch_check_start", num_operations=num_requested, project_id=project_id)
         
         # Make the batch check request with optional project_id
-        data=self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, project_id)) or {}
+        # Try with project_id first, fallback without it if API rejects
+        data = None
+        try:
+            data = self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, project_id)) or {}
+        except Exception as e:
+            # If project_id caused error (e.g., API doesn't support it), retry without
+            error_msg = str(e).lower()
+            if project_id and ("invalid" in error_msg or "unrecognized" in error_msg or "400" in error_msg):
+                self._emit("batch_check_fallback", error=str(e)[:100], retry_without_project=True)
+                # Retry without project_id
+                data = self._post(BATCH_CHECK_URL, self._wrap_ops(op_names, metadata, None)) or {}
+            else:
+                # Different error - re-raise it
+                raise
         
         out={}
         def _dedup(xs):
