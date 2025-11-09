@@ -748,9 +748,16 @@ def _save_prompt_to_disk(prompt_data: Any, project_dir: Optional[str] = None,
             "complete_prompt_text": complete_prompt
         }
         
-        # Save to disk
+        # Save JSON metadata file
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(metadata, f, ensure_ascii=False, indent=2)
+        
+        # Also save plain text version of the exact prompt sent to Google Labs Flow
+        # This is what the user requested - a separate file with just the prompt text
+        txt_filename = f"{scene_part}{timestamp}.txt"
+        txt_filepath = os.path.join(prompts_dir, txt_filename)
+        with open(txt_filepath, "w", encoding="utf-8") as f:
+            f.write(complete_prompt)
         
         return filepath
         

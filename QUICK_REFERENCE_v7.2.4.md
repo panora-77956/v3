@@ -9,15 +9,18 @@ Prompts are now automatically saved to your computer when generating videos.
 ```
 Your Project Download Folder/
   ├── prompts/           ⬅️ NEW FOLDER
-  │   ├── scene_1_20251109_003924.json
-  │   ├── scene_2_20251109_003925.json
+  │   ├── scene_1_20251109_003924.json  (metadata)
+  │   ├── scene_1_20251109_003924.txt   (exact prompt text)
+  │   ├── scene_2_20251109_003925.json  (metadata)
+  │   ├── scene_2_20251109_003925.txt   (exact prompt text)
   │   └── ...
   └── videos/
       └── ...
 ```
 
 ### What's In Each File?
-Each `.json` file contains:
+
+**JSON file** (`.json`) - Contains metadata:
 - **timestamp**: When the video was generated
 - **scene_num**: Scene number (if applicable)
 - **model_key**: Which AI model was used
@@ -25,11 +28,17 @@ Each `.json` file contains:
 - **original_prompt_data**: Your original prompt input
 - **complete_prompt_text**: The full prompt sent to Google Labs Flow API
 
+**TXT file** (`.txt`) - Contains exact prompt:
+- The **exact text prompt** sent to Google Labs Flow API
+- Easy to read and copy
+- Same content as `complete_prompt_text` in JSON, but in plain text format
+
 ### How To Use Saved Prompts?
 1. **Reference**: Check what prompts were used for each video
 2. **Debug**: If a video didn't turn out as expected, review the actual prompt sent
-3. **Reuse**: Copy prompts to generate similar videos later
+3. **Reuse**: Copy prompts from `.txt` files to generate similar videos later
 4. **Learn**: Understand how your inputs are transformed into full prompts
+5. **Compare**: Open `.txt` files side-by-side to see prompt differences between scenes
 
 ---
 

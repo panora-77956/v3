@@ -38,10 +38,13 @@ def _save_prompt_to_disk(prompt_data, project_dir=None, scene_num=None,
 ```
 
 **File Naming Convention:**
-- Format: `scene_{N}_{timestamp}.json`
-- Example: `scene_1_20251109_003924.json`
+- JSON Format: `scene_{N}_{timestamp}.json` - Contains metadata
+- TXT Format: `scene_{N}_{timestamp}.txt` - Contains exact prompt sent to API
+- Example: `scene_1_20251109_003924.json` and `scene_1_20251109_003924.txt`
 
 **Saved Content:**
+
+**JSON file** (with metadata):
 ```json
 {
   "timestamp": "2025-11-09T00:39:24.123456",
@@ -51,6 +54,19 @@ def _save_prompt_to_disk(prompt_data, project_dir=None, scene_num=None,
   "original_prompt_data": { /* original prompt dict */ },
   "complete_prompt_text": "/* full generated prompt */"
 }
+```
+
+**TXT file** (exact prompt sent to Google Labs Flow):
+```
+╔═══════════════════════════════════════════════════════════╗
+║  VISUAL STYLE LOCK (ABSOLUTE CRITICAL PRIORITY)          ║
+║  THIS SECTION MUST NEVER BE IGNORED OR MODIFIED          ║
+╚═══════════════════════════════════════════════════════════╝
+
+REQUIRED VISUAL STYLE: 2D Hand-Drawn Anime Animation
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+...
+(Full prompt text as sent to API)
 ```
 
 **Integration:**
@@ -66,8 +82,10 @@ Prompts are automatically saved when generating videos. No configuration needed.
 ```
 {project_download_dir}/
   ├── prompts/
-  │   ├── scene_1_20251109_003924.json
-  │   ├── scene_2_20251109_003925.json
+  │   ├── scene_1_20251109_003924.json  (metadata)
+  │   ├── scene_1_20251109_003924.txt   (exact prompt text)
+  │   ├── scene_2_20251109_003925.json  (metadata)
+  │   ├── scene_2_20251109_003925.txt   (exact prompt text)
   │   └── ...
   └── videos/
       └── ...
